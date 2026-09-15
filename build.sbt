@@ -13,7 +13,7 @@ ThisBuild / tpolecatDefaultOptionsMode := DevMode
 // applies in CI, verbose and release modes, which are all derived from them.
 ThisBuild / tpolecatDevModeOptions += ScalacOptions.noIndent
 
-lazy val catsEffectVersion     = "3.6.3"
+lazy val catsEffectVersion      = "3.6.3"
 lazy val munitCatsEffectVersion = "2.1.0"
 
 lazy val root = project
