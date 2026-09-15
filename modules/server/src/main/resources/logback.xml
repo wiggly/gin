@@ -1,0 +1,12 @@
+<configuration>
+  <!-- 12-factor: logs are an event stream on stdout, for the runtime to collect. -->
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX, UTC} %-5level [%thread] %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <root level="${GIN_LOG_LEVEL:-INFO}">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>

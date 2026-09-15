@@ -14,6 +14,11 @@ ThisBuild / tpolecatDefaultOptionsMode := DevMode
 ThisBuild / tpolecatDevModeOptions += ScalacOptions.noIndent
 
 lazy val catsEffectVersion = "3.6.3"
+lazy val cirisVersion      = "3.15.1"
+lazy val circeVersion      = "0.14.16"
+lazy val http4sVersion     = "0.23.37"
+lazy val log4catsVersion   = "2.8.0"
+lazy val logbackVersion    = "1.5.38"
 lazy val scalaCheckVersion = "1.20.0"
 lazy val weaverVersion     = "0.13.0"
 
@@ -31,7 +36,7 @@ lazy val commonSettings = testSettings
 
 lazy val root = project
   .in(file("."))
-  .aggregate(core)
+  .aggregate(core, server)
   .settings(
     name           := "wiggly-gin",
     publish / skip := true
@@ -42,9 +47,28 @@ lazy val core = project
   .settings(commonSettings)
   .settings(
     name := "wiggly-gin-core",
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-effect" % catsEffectVersion
+    )
+  )
+
+// Driving adapter: exposes the game over HTTP. Depends on core, never the other way round.
+// The test->test edge shares core's generators with this module's tests; see README.
+lazy val server = project
+  .in(file("modules/server"))
+  .dependsOn(core % "compile->compile;test->test")
+  .settings(commonSettings)
+  .settings(
+    name := "wiggly-gin-server",
     // cats-effect's IOApp needs the main thread for correct resource cleanup.
     Compile / run / fork := true,
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-effect" % catsEffectVersion
+      "org.http4s"    %% "http4s-ember-server" % http4sVersion,
+      "org.http4s"    %% "http4s-circe"        % http4sVersion,
+      "org.http4s"    %% "http4s-dsl"          % http4sVersion,
+      "io.circe"      %% "circe-core"          % circeVersion,
+      "is.cir"        %% "ciris"               % cirisVersion,
+      "org.typelevel" %% "log4cats-slf4j"      % log4catsVersion,
+      "ch.qos.logback" % "logback-classic"     % logbackVersion % Runtime
     )
   )
