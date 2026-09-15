@@ -61,7 +61,9 @@ modules/core/src/test/scala/wiggly/gin/core/MeldSuite.scala
 ```
 
 An invalid meld should be unrepresentable: private constructors, smart constructors returning
-`Option`, and `cards` always in canonical order.
+`Option`, and `cards` always in canonical order. Each kind carries its cards rather than a structural
+encoding such as `Run(suit, lowest, length)` — the constructor enforces the invariant either way, and
+the cards are what every consumer downstream actually wants, layoffs in step 4 included.
 
 ```scala
 sealed trait Meld {
@@ -70,9 +72,10 @@ sealed trait Meld {
 }
 
 object Meld {
-  def set(cards: List[Card]): Option[Set]    // 3-4 of one rank, distinct suits
-  def run(cards: List[Card]): Option[Run]    // 3+ of one suit, consecutive, no wrap
-  def from(cards: List[Card]): Option[Meld]
+  final case class Set private (cards: NonEmptyList[Card]) extends Meld  // 3-4 of one rank
+  final case class Run private (cards: NonEmptyList[Card]) extends Meld  // 3+ in sequence, one suit
+
+  def from(cards: List[Card]): Option[Meld]   // delegating to Set.from and Run.from
 }
 ```
 
