@@ -13,8 +13,21 @@ ThisBuild / tpolecatDefaultOptionsMode := DevMode
 // applies in CI, verbose and release modes, which are all derived from them.
 ThisBuild / tpolecatDevModeOptions += ScalacOptions.noIndent
 
-lazy val catsEffectVersion      = "3.6.3"
-lazy val munitCatsEffectVersion = "2.1.0"
+lazy val catsEffectVersion = "3.6.3"
+lazy val scalaCheckVersion = "1.20.0"
+lazy val weaverVersion     = "0.13.0"
+
+// Tests are weaver suites: property-based by default, effectful without ceremony.
+lazy val testSettings = Seq(
+  libraryDependencies ++= Seq(
+    "org.typelevel"  %% "weaver-cats"       % weaverVersion     % Test,
+    "org.typelevel"  %% "weaver-scalacheck" % weaverVersion     % Test,
+    "org.scalacheck" %% "scalacheck"        % scalaCheckVersion % Test
+  ),
+  testFrameworks += new TestFramework("weaver.framework.CatsEffect")
+)
+
+lazy val commonSettings = testSettings
 
 lazy val root = project
   .in(file("."))
@@ -26,12 +39,12 @@ lazy val root = project
 
 lazy val core = project
   .in(file("modules/core"))
+  .settings(commonSettings)
   .settings(
     name := "wiggly-gin-core",
     // cats-effect's IOApp needs the main thread for correct resource cleanup.
     Compile / run / fork := true,
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-effect"       % catsEffectVersion,
-      "org.typelevel" %% "munit-cats-effect" % munitCatsEffectVersion % Test
+      "org.typelevel" %% "cats-effect" % catsEffectVersion
     )
   )
