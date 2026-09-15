@@ -76,7 +76,9 @@ object Meld {
   /** Melds compare by their cards, which gives the arrangement search a stable order to enumerate
     * candidates in and so makes its choice between equally good arrangements reproducible.
     */
-  given Order[Meld] = Order.by(_.cards)
+  given order: Order[Meld] = Order.by(_.cards)
+
+  given Ordering[Meld] = order.toOrdering
 
   given Show[Meld] = Show.show { meld =>
     val cards = meld.cards.toList.map(_.show).mkString(", ")

@@ -4,7 +4,8 @@ Where the work goes next, and why in this order. Steps 1–4 are pure code in `c
 step 5 is where the `server` adapter finally has something to expose.
 
 Status: the `server` module exists and serves `/health`, with `/api/v1` reserved and currently
-backed by `HttpRoutes.empty`. `core` is empty.
+backed by `HttpRoutes.empty`. `core` holds the card model, melds and the deadwood search: steps 1
+and 2 are done, and [a working plan](PLAN-CARDS-AND-MELDS.md) records how.
 
 ## Settled
 
@@ -15,14 +16,14 @@ brace-removal rewrites. Conventions are in the README; this is not worth re-open
 Still absent by choice: CI. The build gates on `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll test`
 whenever someone decides to wire it up.
 
-## 1. Cards (`core`)
+## 1. Cards (`core`) — done
 
 `Rank`, `Suit`, `Card`, the deadwood value of a card (A=1, face=10, otherwise pip), and the ordered
 52-card deck. Everything below depends on this, and there is nothing to decide.
 
 Tests: 52 distinct cards; the value mapping at the A/10/face boundaries.
 
-## 2. Melds and deadwood (`core`)
+## 2. Melds and deadwood (`core`) — done
 
 `Meld` as either a set (3–4 of a rank) or a run (3+ in suit sequence), meld validation, and
 `bestArrangement(hand)` returning the arrangement that minimises deadwood.
