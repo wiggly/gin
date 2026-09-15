@@ -13,6 +13,7 @@ ThisBuild / tpolecatDefaultOptionsMode := DevMode
 // applies in CI, verbose and release modes, which are all derived from them.
 ThisBuild / tpolecatDevModeOptions += ScalacOptions.noIndent
 
+lazy val catsVersion       = "2.13.0"
 lazy val catsEffectVersion = "3.6.3"
 lazy val cirisVersion      = "3.15.1"
 lazy val circeVersion      = "0.14.16"
@@ -48,6 +49,8 @@ lazy val core = project
   .settings(
     name := "wiggly-gin-core",
     libraryDependencies ++= Seq(
+      // The domain is pure and needs only cats-core; cats-effect is here for the ports.
+      "org.typelevel" %% "cats-core"   % catsVersion,
       "org.typelevel" %% "cats-effect" % catsEffectVersion
     )
   )
