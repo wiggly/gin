@@ -9,6 +9,42 @@ A multiplayer game server for Gin Rummy
 | `wiggly-gin-core` | `modules/core`   | Domain and ports — pure, no infrastructure             |
 | `wiggly-gin-server` | `modules/server` | Driving adapter — exposes the game over HTTP           |
 
+### Where a file goes
+
+The packages are named after the role a file plays in the hexagon, so the role is readable from the
+path.
+
+```
+modules/core/src/main/scala/wiggly/gin/core/
+  domain/   the rules of the game: no F[_], no library but cats-core
+  port/     traits in F[_] that the domain owns, inbound and outbound together
+  service/  drives the domain to satisfy an inbound port
+
+modules/server/src/main/scala/wiggly/gin/server/
+  adapter/
+    http/   inbound: the routes that call into the application
+    memory/ outbound: an implementation of a core port
+  config/         the runtime shell
+  HttpServer.scala
+  Main.scala      the composition root, the only place that knows every adapter
+```
+
+Three rules keep it honest:
+
+1. `core/domain` names no technology. A `GameRepository[F]` trait is domain code; a `Transactor` is
+   not.
+2. A port is declared in `core/port` and implemented under `server/adapter/<technology>`, which is
+   the only place that technology is named.
+3. `Main`, `HttpServer` and `config` are not adapters. They are the shell that reads the
+   configuration, builds the adapters and runs them. Everything depends on the shell and the shell
+   depends on everything, so nothing else may.
+
+`core/port`, `core/service` and `server/adapter/memory` arrive with step 5 of the
+[roadmap](docs/ROADMAP.md); the rest of the tree exists today.
+
+Ports are not split into inbound and outbound packages. Which direction a port faces is clear from
+who implements it, and there will only ever be a handful.
+
 ## Running the server
 
 ```bash

@@ -38,8 +38,9 @@ boundary (≤ 10).
 
 ## 3. The state machine (`core`)
 
-`GameState` (stock, discard pile, both hands, whose turn, phase of turn) and `Move` — draw from
-stock, draw from discard, discard, knock, gin, lay off — behind a single pure total function:
+In `core/domain`, alongside the cards: `GameState` (stock, discard pile, both hands, whose turn,
+phase of turn) and `Move` — draw from stock, draw from discard, discard, knock, gin, lay off —
+behind a single pure total function:
 
 ```
 (state, player, move) => Either[GameError, GameState]
@@ -60,7 +61,9 @@ Tests: each of the four outcomes, worked by hand.
 ## 5. Ports and the first vertical slice (`core` + `server`)
 
 Ports: `GameRepository` (in-memory `Ref` adapter to begin with) and a `GameService` the HTTP layer
-drives.
+drives. Both traits go in `core/port`, the code that drives the domain behind `GameService` goes in
+`core/service`, and the `Ref` store goes in `server/adapter/memory` next to the http adapter. The
+README explains the layout.
 
 The design point that matters here: **a player's view must be redacted.** The opponent's hand and
 the order of the stock are not the requester's to see. Make that a distinct type — `PlayerView`,
