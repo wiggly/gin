@@ -36,6 +36,12 @@ object HealthRoutes:
       case GET -> Root / "health" => Ok()
 ```
 
+Comments earn their place. Default to none: name things so that the code reads as its own
+explanation, and prefer extracting a well-named function over annotating a confusing one. Write a
+comment only where the code cannot carry the information itself — a rule of the game the types do
+not encode, a deliberate deviation, or a subtlety that would otherwise read as a mistake. Say why,
+never what. A comment that restates the line below it is noise, and it drifts out of date.
+
 # Formatting
 
 Formatting is scalafmt; run `sbt scalafmtAll` (or `scalafmtCheckAll` to verify without writing).
