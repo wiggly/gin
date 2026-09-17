@@ -1,11 +1,11 @@
-package wiggly.gin.core
+package wiggly.gin.core.domain
 
 import cats.implicits.*
 import org.scalacheck.Gen
 import weaver.SimpleIOSuite
 import weaver.scalacheck.Checkers
-import wiggly.gin.core.Rank.*
-import wiggly.gin.core.Suit.*
+import wiggly.gin.core.domain.Rank.*
+import wiggly.gin.core.domain.Suit.*
 import wiggly.gin.gen.MeldGen
 
 object MeldSuite extends SimpleIOSuite with Checkers {

@@ -1,7 +1,7 @@
 package wiggly.gin.gen
 
 import org.scalacheck.Gen
-import wiggly.gin.core.{Card, Deck, Meld}
+import wiggly.gin.core.domain.{Card, Deck, Meld}
 
 object HandGen {
 

@@ -1,4 +1,4 @@
-package wiggly.gin.core
+package wiggly.gin.core.domain
 
 import cats.implicits.*
 import org.scalacheck.Gen

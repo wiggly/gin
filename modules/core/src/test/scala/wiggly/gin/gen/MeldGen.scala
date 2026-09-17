@@ -1,7 +1,7 @@
 package wiggly.gin.gen
 
 import org.scalacheck.Gen
-import wiggly.gin.core.{Card, Meld, Rank, Suit}
+import wiggly.gin.core.domain.{Card, Meld, Rank, Suit}
 
 object MeldGen {
 

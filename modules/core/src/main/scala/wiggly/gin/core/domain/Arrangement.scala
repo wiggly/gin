@@ -1,4 +1,4 @@
-package wiggly.gin.core
+package wiggly.gin.core.domain
 
 import cats.syntax.all.*
 import cats.{Eq, Show}

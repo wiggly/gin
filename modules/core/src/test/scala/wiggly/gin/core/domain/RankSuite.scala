@@ -1,4 +1,4 @@
-package wiggly.gin.core
+package wiggly.gin.core.domain
 
 import org.scalacheck.Gen
 import weaver.SimpleIOSuite

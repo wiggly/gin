@@ -1,7 +1,7 @@
 package wiggly.gin.gen
 
 import org.scalacheck.Gen
-import wiggly.gin.core.{Card, Deck, Rank, Suit}
+import wiggly.gin.core.domain.{Card, Deck, Rank, Suit}
 
 /** Generators for the card model, shared with the other modules through the `test->test` dependency
   * in `build.sbt`.
