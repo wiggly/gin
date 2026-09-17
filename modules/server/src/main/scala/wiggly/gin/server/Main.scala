@@ -17,8 +17,7 @@ object Main extends IOApp {
   private val gameRoutes: HttpRoutes[IO] = HttpRoutes.empty[IO]
 
   def run(args: List[String]): IO[ExitCode] =
-    AppConfig.fromEnv
-      .load[IO]
+    IO.fromEither(AppConfig.fromEnv)
       .flatMap { config =>
         HttpServer
           .resource[IO](config.http, GinApi.httpApp[IO](gameRoutes))

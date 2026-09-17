@@ -15,7 +15,7 @@ ThisBuild / tpolecatDevModeOptions += ScalacOptions.noIndent
 
 lazy val catsVersion       = "2.13.0"
 lazy val catsEffectVersion = "3.6.3"
-lazy val cirisVersion      = "3.15.1"
+lazy val pureconfigVersion = "0.17.10"
 lazy val circeVersion      = "0.14.16"
 lazy val http4sVersion     = "0.23.37"
 lazy val log4catsVersion   = "2.8.0"
@@ -66,12 +66,13 @@ lazy val server = project
     // cats-effect's IOApp needs the main thread for correct resource cleanup.
     Compile / run / fork := true,
     libraryDependencies ++= Seq(
-      "org.http4s"    %% "http4s-ember-server" % http4sVersion,
-      "org.http4s"    %% "http4s-circe"        % http4sVersion,
-      "org.http4s"    %% "http4s-dsl"          % http4sVersion,
-      "io.circe"      %% "circe-core"          % circeVersion,
-      "is.cir"        %% "ciris"               % cirisVersion,
-      "org.typelevel" %% "log4cats-slf4j"      % log4catsVersion,
-      "ch.qos.logback" % "logback-classic"     % logbackVersion % Runtime
+      "org.http4s"            %% "http4s-ember-server" % http4sVersion,
+      "org.http4s"            %% "http4s-circe"        % http4sVersion,
+      "org.http4s"            %% "http4s-dsl"          % http4sVersion,
+      "io.circe"              %% "circe-core"          % circeVersion,
+      "com.github.pureconfig" %% "pureconfig-core"     % pureconfigVersion,
+      "com.github.pureconfig" %% "pureconfig-ip4s"     % pureconfigVersion,
+      "org.typelevel"         %% "log4cats-slf4j"      % log4catsVersion,
+      "ch.qos.logback"         % "logback-classic"     % logbackVersion % Runtime
     )
   )

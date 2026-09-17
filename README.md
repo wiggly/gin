@@ -29,6 +29,10 @@ All configuration comes from the environment, with defaults that work unchanged 
 
 An unparseable value fails startup rather than silently falling back to the default.
 
+The defaults and the environment variables that override them live in
+`modules/server/src/main/resources/application.conf`; they are read with
+[pureconfig](https://pureconfig.github.io/).
+
 ## Endpoints
 
 | Endpoint   | Purpose                                                          |
