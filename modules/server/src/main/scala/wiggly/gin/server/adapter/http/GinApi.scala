@@ -1,4 +1,4 @@
-package wiggly.gin.server.http
+package wiggly.gin.server.adapter.http
 
 import cats.data.Kleisli
 import cats.effect.Concurrent

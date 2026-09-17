@@ -4,8 +4,8 @@ import cats.effect.{ExitCode, IO, IOApp}
 import org.http4s.HttpRoutes
 import org.typelevel.log4cats.LoggerFactory
 import org.typelevel.log4cats.slf4j.Slf4jFactory
+import wiggly.gin.server.adapter.http.GinApi
 import wiggly.gin.server.config.AppConfig
-import wiggly.gin.server.http.GinApi
 
 object Main extends IOApp {
 
