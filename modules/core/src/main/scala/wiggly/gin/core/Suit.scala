@@ -3,7 +3,7 @@ package wiggly.gin.core
 import cats.{Order, Show}
 
 enum Suit {
-  case Clubs, Diamonds, Hearts, Spades
+  case Spades, Hearts, Diamonds, Clubs
 }
 
 object Suit {
