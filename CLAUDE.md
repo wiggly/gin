@@ -14,6 +14,23 @@ Code is pure functional.
 
 It should represent business logic in pure code that does not rely on IO or concrete effects until necessary.
 
+# Design
+
+Make invalid states unrepresentable. Reach for a type that cannot hold a value the rules forbid,
+rather than a type that can hold one and a check somewhere else that catches it.
+
+In practice that means a private constructor and a smart constructor returning `Option`, for
+anything that carries an invariant. `Meld.Set.from` and `Meld.Run.from` are the pattern. Nothing
+downstream re-checks a meld it receives, because it cannot receive anything else.
+
+Where a type cannot carry the invariant, validate once at the boundary the value enters through,
+and keep every function past that point total. A guard that repeats a check the type already made
+is dead code, and it is the kind of dead code that rots into a disagreement.
+
+Some invariants span several fields, so no single type can hold them. "These piles together are
+exactly one deck" is one. State those as properties in the tests instead of as assertions
+scattered through the code that maintains them.
+
 # Code style
 
 Use braces to delimit scope, not significant whitespace. This applies to all Scala definitions —
@@ -50,6 +67,26 @@ Formatting is scalafmt; run `sbt scalafmtAll` (or `scalafmtCheckAll` to verify w
 to `false`. Both default to off, but they are stated explicitly so that no future scalafmt default —
 and no one reaching for a rewrite rule — can quietly reformat the tree into indentation syntax
 against the rule above. Do not turn them on.
+
+# Documentation
+
+Draw diagrams as Mermaid, in a fenced block tagged `mermaid`. Do not draw them as ASCII art. This
+covers anything past a trivial illustration. Simple things such as directory layout can remain ASCII.
+
+Match the diagram type to the thing. `stateDiagram-v2` for a state machine, `flowchart` for a
+directory layout or a dependency graph, `erDiagram` for a data model.
+
+Keep a table or a list beside a diagram wherever exactness matters, and say which one is the
+authority. The diagram is the overview. Do not draw the same thing twice, because two pictures of
+one machine both have to be kept in step.
+
+Mermaid renders on GitHub and in IntelliJ with the Mermaid plugin, so a broken block is invisible
+until someone opens the page. Parse a block before handing the work over:
+
+```bash
+mkdir -p /tmp/mermaid-check && cd /tmp/mermaid-check && npm install mermaid jsdom
+# set the jsdom globals, then: await mermaid.parse(block)
+```
 
 # Code structure
 

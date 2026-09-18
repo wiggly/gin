@@ -2,6 +2,9 @@
 
 A multiplayer game server for Gin Rummy
 
+The rules of a round are in [the game flow document](docs/GAME-FLOW.md). Where the work goes next
+is in [the roadmap](docs/ROADMAP.md).
+
 ## Modules
 
 | Module            | Path             | Role                                                   |
@@ -12,22 +15,45 @@ A multiplayer game server for Gin Rummy
 ### Where a file goes
 
 The packages are named after the role a file plays in the hexagon, so the role is readable from the
-path.
+path. The arrows below are dependencies, and every one of them points inward.
 
-```
-modules/core/src/main/scala/wiggly/gin/core/
-  domain/   the rules of the game: no F[_], no library but cats-core
-  port/     traits in F[_] that the domain owns, inbound and outbound together
-  service/  drives the domain to satisfy an inbound port
+```mermaid
+flowchart RL
+    subgraph server["modules/server: wiggly.gin.server"]
+        shell["config/<br/>HttpServer.scala<br/>Main.scala"]
+        http["adapter/http/<br/>inbound"]
+        memory["adapter/memory/<br/>outbound"]
+    end
 
-modules/server/src/main/scala/wiggly/gin/server/
-  adapter/
-    http/   inbound: the routes that call into the application
-    memory/ outbound: an implementation of a core port
-  config/         the runtime shell
-  HttpServer.scala
-  Main.scala      the composition root, the only place that knows every adapter
+    subgraph core["modules/core: wiggly.gin.core"]
+        service["service/"]
+        port["port/"]
+        domain["domain/"]
+    end
+
+    shell --> http
+    shell --> memory
+    http --> service
+    service --> port
+    service --> domain
+    memory --> port
+    port --> domain
 ```
+
+The table is the authority on where a file goes. Each path is relative to
+`src/main/scala/wiggly/gin/` in the matching module, so `core/domain/` is the full
+`modules/core/src/main/scala/wiggly/gin/core/domain/`.
+
+| Path | What goes there |
+| --- | --- |
+| `core/domain/` | The rules of the game. No `F[_]`, and no library but cats-core. |
+| `core/port/` | Traits in `F[_]` that the domain owns, inbound and outbound together. |
+| `core/service/` | Drives the domain to satisfy an inbound port. |
+| `server/adapter/http/` | Inbound: the routes that call into the application. |
+| `server/adapter/memory/` | Outbound: an implementation of a core port. |
+| `server/config/` | The runtime shell: configuration read from the environment. |
+| `server/HttpServer.scala` | The Ember wiring. |
+| `server/Main.scala` | The composition root, the only place that knows every adapter. |
 
 Three rules keep it honest:
 
