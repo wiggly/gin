@@ -22,7 +22,7 @@ object HandGen {
   def handWithKnownDeadwood(size: Int = HandSize): Gen[(List[Card], Int)] = for {
     offered <- Gen.listOfN(3, MeldGen.shortMeld)
     melded = disjointWithin(offered, size).flatMap(_.cards.toList)
-    loose <- Gen.pick(size - melded.size, Deck.ordered.diff(melded))
+    loose <- Gen.pick(size - melded.size, Deck.ordered.cards.diff(melded))
   } yield (melded ++ loose, loose.toList.map(_.deadwoodValue).sum)
 
   /** Keeps the melds that neither overlap one already kept nor overflow the hand. */

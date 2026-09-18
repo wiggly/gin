@@ -18,8 +18,9 @@ object Arrangement {
     *
     * Total over any number of cards rather than only the ten or eleven of a real hand: asking what
     * a handful of cards is worth is a reasonable question, and it keeps worked examples small.
-    * Cards are expected to be distinct, since a hand is dealt from a single deck; a repeated card
-    * is not rejected, it simply ends up as deadwood.
+    * Cards are distinct, because a hand comes from a [[Deck]] and no move afterwards ever makes a
+    * card. A repeated card is not rejected and simply ends up as deadwood, but nothing in the game
+    * can hand one over.
     *
     * Brute force, and deliberately so — a hand is small enough that a correct slow answer beats a
     * clever wrong one. If a profile ever disagrees, the search below memoises on the cards still

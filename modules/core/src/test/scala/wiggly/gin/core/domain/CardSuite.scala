@@ -22,7 +22,7 @@ object CardSuite extends SimpleIOSuite with Checkers {
 
   test("the canonical order agrees with the order the deck is built in") {
     forall(CardGen.distinctCards(52)) { shuffled =>
-      expect.eql(shuffled.sorted, Deck.ordered)
+      expect.eql(shuffled.sorted, Deck.ordered.cards)
     }
   }
 }
