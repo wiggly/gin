@@ -80,6 +80,27 @@ object GameGen {
     }
   }
 
+  /** A round played out with nobody ever knocking, which is the only way the stock runs down.
+    *
+    * The walk is the one [[walked]] takes with the knocks removed from what is on offer, so the
+    * round it returns is always the dead one rather than a state assembled to look like it.
+    */
+  val ranOutOfStock: Gen[GameState] = dealt.flatMap(drain)
+
+  private def drain(state: GameState): Gen[GameState] = {
+    state match {
+      case _: GameState.Finished   => Gen.const(state)
+      case _: GameState.InProgress =>
+        legalMoves(state).filter {
+          case (_: Move.Knock, _) => false
+          case _                  => true
+        } match {
+          case Nil   => sys.error(s"a round with no knock available ran out of moves: $state")
+          case moves => Gen.oneOf(moves).flatMap((_, next) => drain(next))
+        }
+    }
+  }
+
   /** A round in progress, some way into its play. */
   def partWayThrough(steps: Int): Gen[GameState] = dealt.flatMap(walk(_, steps))
 
