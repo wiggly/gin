@@ -104,7 +104,9 @@ anything in the code. One search removes the dependency, and it is cheaper than 
 above:
 
 ```scala
-private def select[A](available: List[Card], candidates: List[A])(cards: A => NonEmptyList[Card]): List[A]
+private[domain] def select[A](available: List[Card], candidates: List[A])(
+    cardsOf: A => NonEmptyList[Card]
+): List[A]
 ```
 
 `select` already picks the subset of candidates that melds the most value. Giving it a function to
@@ -119,7 +121,7 @@ final case class Defence(melds: List[Meld], layoffs: List[Card], deadwood: List[
 }
 
 object Defence {
-  def against(hand: Hand, melds: List[Meld]): Defence
+  def against(hand: Hand, laid: List[Meld]): Defence
 }
 ```
 
@@ -133,8 +135,8 @@ Melds come first in canonical order and layoff groups after them, so a tie puts 
 defender's own meld rather than on the knocker's, which is what the table would look like.
 
 **Tests.** The bridge example above as a worked example, because it is the case the search exists
-for. A defender who can lay off nothing gets the same deadwood as `Arrangement.best` alone. A run
-extended at both ends, and a chain laid off one card at a time.
+for. A defender who can lay off nothing gets the same deadwood as `Arrangement.best` alone. A card
+laid onto a set, a run extended at both ends, and a chain laid off one card at a time.
 
 Two properties. The three lists of a `Defence` are together exactly the hand, which is the same
 shape of check as the partition invariant the rest of the domain leans on. And a defender is never
@@ -167,22 +169,24 @@ object RoundScore {
 }
 ```
 
-`of` reads the outcome and both hands out of the finished round, which is why step 3 kept them.
+`of` reads the outcome and both hands out of the finished round, which is why step 3 kept them. The
+four rules it applies are the scoring table in [GAME-FLOW.md](GAME-FLOW.md), which is where they
+are written down. Gin resolves first and never builds a `Defence`, which is how "gin blocks
+layoffs" becomes an order of evaluation rather than a flag.
 
-| The round ended | The score |
-| --- | --- |
-| `Dead` | `Dead`. Nobody scores. |
-| `Knocked`, and the knocker has no deadwood | `Gin`. The knocker takes the defender's deadwood in full, plus 25. No layoffs. |
-| `Knocked`, and the defender is left above the knocker | `Knock`. The knocker takes the difference. |
-| `Knocked`, and the defender is left at or below the knocker | `Undercut`. The defender takes the difference, plus 25. |
+`scored` is one accessor rather than the two the design started with. A case cannot carry a field
+called `winner` beside an enum method of the same name, and a pair says the thing that matters
+anyway: a dead round scores for nobody, and that is the one case every reader has to handle.
 
-The table is the authority. Gin resolves first and never builds a `Defence`, which is how "gin
-blocks layoffs" becomes an order of evaluation rather than a flag. An undercut at equal deadwood
-scores nothing for the difference and the bonus on top.
+**Tests.** One worked example for each row, each with a hand small enough to add up by eye, and
+each played through the machine rather than assembled, so that every score is the score of a round
+that could happen. Gin against a defender holding two cards that would have gone straight onto the
+run, which is the case that proves gin blocks layoffs. An undercut at exactly equal deadwood, and a
+knock one pip the other side of it.
 
-**Tests.** One worked example for each row, each with a hand small enough to add up by eye. Gin
-against a defender who could have laid off every card, which is the case that proves gin blocks
-them. An undercut at exactly equal deadwood.
+The dead round is a property rather than an example. A random walk of legal moves knocks as soon as
+a knock is legal, so `GameGen` gains `ranOutOfStock`, which is that walk with the knocks taken out
+and therefore the only way to reach a dead round on purpose.
 
 Properties. A score is never negative. A dead round has no winner and every other score has one.
 The winner of a `Knock` or a `Gin` is the player the outcome names, and the winner of an `Undercut`
@@ -258,8 +262,9 @@ Test first throughout, in the order above. Five commits, each green on its own:
 2. `select` generalises and `Defence` arrives.
 3. `RoundScore`.
 4. `Match`.
-5. The documents: the match section of `GAME-FLOW.md` gains the settled answers, and `ROADMAP.md`
-   marks steps 3 and 4 done.
+5. The documents: `GAME-FLOW.md` gains the scoring rules and the settled answers about the match,
+   and `ROADMAP.md` marks steps 3 and 4 done. The scoring table lives there rather than here,
+   because this plan does not restate a rule.
 
 Before handing the work over, run the gate from `CLAUDE.md`:
 

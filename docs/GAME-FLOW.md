@@ -2,11 +2,11 @@
 
 This document describes one round of gin rummy as a state machine. A state machine is a fixed set
 of states with named moves between them. It is the rules reference for the `core` domain, and the
-[implementation plan](PLAN-STATE-MACHINE.md) points here for every rule so that each rule is
-written once.
+working plans for [the state machine](PLAN-STATE-MACHINE.md) and [scoring](PLAN-SCORING.md) point
+here for every rule so that each rule is written once.
 
-The round is the unit this document covers. A match is a sequence of rounds. The last section
-records what the match level still needs.
+The round is the unit this document covers. A match is a sequence of rounds. The last two sections
+cover what a round is worth and how the rounds add up.
 
 ## Terms
 
@@ -24,6 +24,8 @@ records what the match level still needs.
 | layoff | A card added to the knocker's meld to cut deadwood. |
 | undercut | The opponent ends with deadwood at or below the knocker's. |
 | dead round | A round that ends with no score for either player. |
+| box | A round won, which is worth a bonus once the match is over. |
+| shutout | A match the loser finished with no points at all. |
 
 ## The deal
 
@@ -34,6 +36,9 @@ A deck is all 52 cards, each of them once. The domain makes that a property of t
 than a thing to check, so a round cannot start from a deck that repeats a card or is short of one.
 Every move after the deal moves a card from one place to another and never makes one, so the four
 places together stay the deck for as long as the round lasts.
+
+The deal takes the seating as well as the deck, because the seating is what says which of the two
+players dealt. Nothing in a round reads it except the opening, and nothing in a round changes it.
 
 The deal takes a deck that is already shuffled. A shuffle is an effect, so it stays outside the
 domain. Step 5 of the [roadmap](ROADMAP.md) adds the port that supplies a shuffled deck. Until
@@ -101,7 +106,7 @@ stateDiagram-v2
     state "Finished(Knocked)" as Knocked
     state "Finished(Dead)" as Dead
 
-    [*] --> Opening : deal(deck)
+    [*] --> Opening : deal(deck, seats)
 
     OfferNonDealer --> Discarding : DrawDiscard
     OfferDealer --> Discarding : DrawDiscard
@@ -191,8 +196,8 @@ card. `CannotKnock` measures the ten cards that remain after the discard, not th
 
 A round finishes in one of two ways.
 
-`Knocked(player)` records who knocked. The finished state keeps both hands, so step 4 of the
-roadmap can score the round without replaying it.
+`Knocked(player)` records who knocked. The finished state keeps both hands, so scoring reads the
+round rather than replaying it.
 
 `Dead` records that the stock ran out. Neither player scores.
 
@@ -207,19 +212,63 @@ cut deadwood and never adds to it, so a player who declined one would only lose 
 
 Gin blocks layoffs. A player who faces gin scores their deadwood in full.
 
-An undercut is an outcome of the arithmetic rather than a state of the round. Step 4 compares the
+A card laid onto a run has to be contiguous with it, as any card in a run does. Laying off the card
+two ranks past the end of a run therefore means laying off the card in between as well, and a player
+who cannot reach a run has nothing to put on it.
+
+An undercut is an outcome of the arithmetic rather than a state of the round. Scoring compares the
 two deadwood totals after layoffs and awards the points.
+
+## Scoring
+
+A finished round is worth points to one player or to neither. This table is the authority.
+
+| The round ended | Who scores | What they score |
+| --- | --- | --- |
+| The stock ran down | Neither | Nothing, and the cards are dealt again. |
+| A knock, the knocker left with nothing | The knocker | The other hand in full, plus 25. No layoffs. |
+| A knock, the other player left above the knocker | The knocker | The difference between the two hands. |
+| A knock, the other player left at or below the knocker | The other player | The difference, plus 25. |
+
+```mermaid
+flowchart TB
+    Round["a finished round"] --> Stock{"did the stock run down?"}
+    Stock -->|yes| Nobody["nobody scores"]
+    Stock -->|no| Gin{"was the knocker left with nothing?"}
+    Gin -->|yes| GinPoints["the knocker scores the other hand plus 25"]
+    Gin -->|no| LayOff["the other player lays off every card they can"]
+    LayOff --> Under{"are they left at or below the knocker?"}
+    Under -->|yes| Undercut["they score the difference plus 25"]
+    Under -->|no| Knock["the knocker scores the difference"]
+```
+
+Gin is settled before any layoff is worked out, which is the whole of the rule that gin blocks
+them. An undercut at equal deadwood scores nothing for the difference and the bonus on top.
 
 ## The match
 
-Rounds accumulate to a target of 100 points. The deal passes to the other player after each round.
-A dead round is dealt again by the same dealer.
+Rounds accumulate to a target of 100 points. The deal passes to the other player after each round
+that scores. A dead round is dealt again by the same dealer.
 
-Three questions remain open at this level, and step 4 of the roadmap settles them together with
-scoring:
+Three questions were open at this level. These are the answers.
 
-- Whether the match state machine lives in the domain or falls out of the score alone.
-- How a match records the rounds it has played, if it records them at all.
-- Which bonuses apply at the end of a match, such as a bonus for winning every round.
+A match is a ledger rather than a machine that owns the round. It holds the seating the first round
+was dealt with and the rounds played since, and the totals, the rounds each player won and who
+deals next are all arithmetic over that list. Whoever holds a game deals each round with the
+seating the ledger gives and plays the score back in when the round ends.
 
-Nothing in the round above depends on the answers.
+A match records every round it played. It has to, because the box bonus counts the rounds a player
+won.
+
+Three bonuses apply, and only once a player has reached the target.
+
+| Bonus | What it is worth |
+| --- | --- |
+| The game | 100 to the winner. |
+| A box | 25 to each player for every round that player won. |
+| A shutout | The winner's figure doubles if the other player finished on nothing. |
+
+Winning a round is always worth at least a point, so a player who finished on nothing won no rounds
+and has no boxes, and the shutout never has to argue with one.
+
+Nothing in the round above depends on any of this.

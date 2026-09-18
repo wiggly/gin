@@ -4,11 +4,14 @@ Where the work goes next, and why in this order. Steps 1–4 are pure code in `c
 step 5 is where the `server` adapter finally has something to expose.
 
 Status: the `server` module exists and serves `/health`, with `/api/v1` reserved and currently
-backed by `HttpRoutes.empty`. `core` holds the card model, melds and the deadwood search: steps 1
-and 2 are done, and [a working plan](PLAN-CARDS-AND-MELDS.md) records how.
+backed by `HttpRoutes.empty`. `core` holds the card model, the melds and the deadwood search, the
+round as a state machine, and the scoring that adds rounds up into a match: steps 1 to 4 are done.
+Three working plans record how, one per step: [cards and melds](PLAN-CARDS-AND-MELDS.md), [the
+state machine](PLAN-STATE-MACHINE.md) and [scoring](PLAN-SCORING.md).
 
-The rules of the round are written down once, in [the game flow document](GAME-FLOW.md). It is the
-permanent reference for steps 3 and 4, and the plans below point at it rather than restating it.
+The rules of the round and of the match are written down once, in [the game flow
+document](GAME-FLOW.md). It is the permanent reference, and the plans point at it rather than
+restating it.
 
 ## Settled
 
@@ -42,7 +45,7 @@ Optimise only if a profile says to.
 Tests: hands with hand-computed deadwood; the ambiguous-card case; gin (0 deadwood); the knock
 boundary (≤ 10).
 
-## 3. The state machine (`core`)
+## 3. The state machine (`core`) — done
 
 In `core/domain`, alongside the cards: `GameState` (stock, discard pile, both hands, whose turn,
 phase of turn) and `Move` — draw from stock, draw from discard, pass, discard, knock — behind a
@@ -54,7 +57,7 @@ single pure total function:
 
 [The game flow document](GAME-FLOW.md) holds the states, the transitions, the guards and the error
 each guard returns. [A working plan](PLAN-STATE-MACHINE.md) records the files and the order they
-get written in.
+were written in.
 
 Two moves that an earlier draft of this list named are gone. Gin is a knock worth nothing rather
 than a move of its own. A layoff is computed with the score in step 4 rather than played out,
@@ -66,18 +69,31 @@ tests deal a known deck and the effect stays at the edge of the application.
 Tests: turn order; draw-before-discard; illegal moves rejected without mutating state; stock
 exhaustion; knock above and below the threshold.
 
-## 4. Scoring (`core`)
+## 4. Scoring (`core`) — done
 
-Knock, gin bonus, undercut, layoffs, and round totals accumulating to a 100-point match.
+`RoundScore.of` turns a finished round into points. `Defence` works out what the other player is
+left holding once every layoff is taken, in one search rather than a best arrangement followed by a
+layoff pass, because the two compete over the card that joins a hand to the end of a knocker's run.
+`Match` adds the rounds up to a target of 100 and applies the three bonuses.
 
-Tests: each of the four outcomes, worked by hand.
+The numbers and the rules are in [the game flow document](GAME-FLOW.md), which also records the
+three answers this step owed the match level. [A working plan](PLAN-SCORING.md) records the files
+and the order they were written in.
+
+A match is a ledger rather than a machine that owns the round, so step 5 takes on the job of
+dealing each round with the seating the ledger gives and playing the score back in when the round
+ends.
+
+Tests: each outcome and each bonus worked by hand, with properties for the arithmetic and for the
+three lists a defence splits a hand into.
 
 ## 5. Ports and the first vertical slice (`core` + `server`)
 
 Ports: `GameRepository` (in-memory `Ref` adapter to begin with) and a `GameService` the HTTP layer
-drives. Both traits go in `core/port`, the code that drives the domain behind `GameService` goes in
-`core/service`, and the `Ref` store goes in `server/adapter/memory` next to the http adapter. The
-README explains the layout.
+drives. `GameService` is also where the match ledger and the round in play are held together, which
+is the one thing step 4 left for somebody else to do. Both traits go in `core/port`, the code that
+drives the domain behind `GameService` goes in `core/service`, and the `Ref` store goes in
+`server/adapter/memory` next to the http adapter. The README explains the layout.
 
 The design point that matters here: **a player's view must be redacted.** The opponent's hand and
 the order of the stock are not the requester's to see. Make that a distinct type — `PlayerView`,
