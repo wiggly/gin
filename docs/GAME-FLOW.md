@@ -156,7 +156,7 @@ round with a score.
 
 ## Guards
 
-The states above carry most of the rules. Nine guards carry the rest, and each one names the error
+The states above carry most of the rules. Ten guards carry the rest, and each one names the error
 it returns.
 
 | Rule | Error |
@@ -166,6 +166,7 @@ it returns.
 | A player must discard after drawing. | `MustDiscard` |
 | `Pass` needs an upcard on offer. | `NothingToPass` |
 | The opening draw must come from the stock. | `PileClosed` |
+| The stock stays closed while the upcard is on offer. | `StockClosed` |
 | A discarded card must be in the player's hand. | `CardNotHeld` |
 | A player cannot discard the card just taken from the pile. | `CannotDiscardDrawnCard` |
 | A knock needs ten or less deadwood after the discard. | `CannotKnock` |
@@ -175,8 +176,12 @@ The player on turn is the player the state names. `AwaitingOpeningDraw` names no
 always the non-dealer's, and a move there by the dealer returns `NotYourTurn` like any other.
 
 `MustDraw` means that the player has not taken a card yet this turn, so it answers a discard or a
-knock in any of the three states before `AwaitingDiscard`. `MustDiscard` answers a draw or a pass
-once the player holds eleven cards.
+knock in any of the three states before `AwaitingDiscard`. `MustDiscard` answers a draw once the
+player holds eleven cards, and a pass at any point after the opening returns `NothingToPass`.
+
+`PileClosed` and `StockClosed` are a pair, and each one names the source that is shut. A player
+cannot reach the stock while the upcard is still on offer, and a player who has just refused the
+upcard cannot then take it.
 
 `CannotDiscardDrawnCard` applies to `Knock` as much as to `Discard`, because a knock discards a
 card. `CannotKnock` measures the ten cards that remain after the discard, not the eleven in hand.
