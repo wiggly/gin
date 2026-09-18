@@ -129,6 +129,37 @@ object MatchSuite extends SimpleIOSuite with Checkers {
     }
   }
 
+  test("the deal is back with the player who opened after an even number of scored rounds") {
+    forall(MatchGen.played) { played =>
+      played match {
+        case round: Match.InProgress => {
+          val scored = round.rounds.count(_.scored.isDefined)
+
+          expect.eql(round.seats, if (scored % 2 == 0) round.opening else round.opening.passed)
+        }
+        case _: Match.Finished => success
+      }
+    }
+  }
+
+  test("a dead round leaves the totals and the dealer alone and only lengthens the history") {
+    forall(MatchGen.played) { played =>
+      played match {
+        case round: Match.InProgress => {
+          val next = round.played(RoundScore.Dead)
+
+          expect.eql(next.totals, round.totals) and
+            expect.eql(next.rounds.size, round.rounds.size + 1) and
+            expect(next match {
+              case playing: Match.InProgress => playing.seats == round.seats
+              case _: Match.Finished         => false
+            })
+        }
+        case _: Match.Finished => success
+      }
+    }
+  }
+
   test("the totals hold the points of the rounds played and nothing besides") {
     forall(MatchGen.played) { played =>
       expect.eql(
