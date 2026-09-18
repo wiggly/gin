@@ -177,7 +177,8 @@ always the non-dealer's, and a move there by the dealer returns `NotYourTurn` li
 
 `MustDraw` means that the player has not taken a card yet this turn, so it answers a discard or a
 knock in any of the three states before `AwaitingDiscard`. `MustDiscard` answers a draw once the
-player holds eleven cards, and a pass at any point after the opening returns `NothingToPass`.
+player holds eleven cards. A pass in any state but `UpcardOffered` returns `NothingToPass`, the
+opening draw included, because both players have already had the offer by then.
 
 `PileClosed` and `StockClosed` are a pair, and each one names the source that is shut. A player
 cannot reach the stock while the upcard is still on offer, and a player who has just refused the

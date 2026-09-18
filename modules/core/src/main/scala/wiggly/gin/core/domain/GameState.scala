@@ -12,11 +12,8 @@ import cats.{Eq, Show}
 final case class Table(stock: List[Card], discard: List[Card], hands: Hands)
 
 object Table {
-  given Eq[Table] = Eq.fromUniversalEquals
-
-  given Show[Table] = Show.show { table =>
-    show"Table(stock = ${table.stock.size}, discard = ${table.discard.size}, ${table.hands})"
-  }
+  given Eq[Table]   = Eq.fromUniversalEquals
+  given Show[Table] = Show.fromToString
 }
 
 /** What the round is waiting for.
@@ -226,8 +223,5 @@ object GameState {
 
   given Eq[GameState] = Eq.fromUniversalEquals
 
-  given Show[GameState] = Show.show {
-    case InProgress(table, phase) => show"InProgress($phase, $table)"
-    case Finished(table, outcome) => show"Finished($outcome, $table)"
-  }
+  given Show[GameState] = Show.fromToString
 }

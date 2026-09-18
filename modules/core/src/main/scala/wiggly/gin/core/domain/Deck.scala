@@ -41,5 +41,5 @@ object Deck {
 
   given Eq[Deck] = Eq.fromUniversalEquals
 
-  given Show[Deck] = Show.show(deck => s"Deck(${deck.size} cards)")
+  given Show[Deck] = Show.fromToString
 }

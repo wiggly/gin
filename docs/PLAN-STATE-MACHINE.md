@@ -169,19 +169,23 @@ boundary is a rule rather than a derivation.
 ## Order of work
 
 Test first throughout, in the order above, because each stage constrains the shape of the next.
-Five commits, each green on its own:
+Three commits, each green on its own:
 
-1. `Deck` becomes a validated type, with the generators and the `Arrangement.best` comment following.
-2. `Player` and `Hand`.
-3. The state types, `deal` and the opening ceremony.
-4. The turn cycle.
-5. Knock, gin and the dead round.
+1. `Deck` becomes a validated type, with the generators and the `Arrangement.best` comment
+   following. It goes first and alone because it changes code that already exists and already has
+   tests, which is a different concern from adding new types beside it.
+2. `Player`, `Hand` and `Hands`, the rest of stage 1.
+3. Stages 2, 3 and 4 together: the state types, `deal` and the whole transition function.
 
-`Deck` goes first and alone because it changes code that already exists and already has tests,
-which is a different concern from adding new types beside it.
+That third commit was meant to be three. Writing it showed that the machine does not split that
+way. The transition is one total function over every pairing of phase and move, and the opening
+lands the round in `AwaitingDiscard`, whose only ways out are a discard and a knock. A commit that
+stopped after the opening would have to refuse a legal discard, and it would be green only because
+no test had asked yet. The three groups of tests still arrive in order, and each group was watched
+failing before the code that answers it existed, but one commit holds them.
 
-The amendment to `ROADMAP.md` rides with the first commit, because step 3 there still lists a
-layoff as a move and no longer needs to.
+The amendment to `ROADMAP.md` went in ahead of all three, with this plan and the flow document,
+because it is a change to the documents rather than to the code.
 
 Before handing the work over, run the gate from `CLAUDE.md`:
 
@@ -190,7 +194,7 @@ SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test
 ```
 
 The build also gates coverage at 85% of statements and 50% of branches across both modules, so run
-`sbt coverageAll` once the fifth commit lands.
+`sbt coverageAll` once the last commit lands.
 
 ## Deliberately left out
 

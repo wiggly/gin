@@ -47,7 +47,7 @@ object Hand {
 
   given Eq[Hand] = Eq.fromUniversalEquals
 
-  given Show[Hand] = Show.show(hand => hand.cards.map(_.show).mkString("Hand(", ", ", ")"))
+  given Show[Hand] = Show.fromToString
 }
 
 /** Both players' hands, keyed by seat so that a lookup cannot fail. */
@@ -71,8 +71,6 @@ final case class Hands(dealer: Hand, nonDealer: Hand) {
 }
 
 object Hands {
-  given Eq[Hands] = Eq.fromUniversalEquals
-
-  given Show[Hands] =
-    Show.show(hands => show"Hands(dealer = ${hands.dealer}, nonDealer = ${hands.nonDealer})")
+  given Eq[Hands]   = Eq.fromUniversalEquals
+  given Show[Hands] = Show.fromToString
 }
