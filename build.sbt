@@ -35,6 +35,7 @@ addCommandAlias(
 
 lazy val catsVersion       = "2.13.0"
 lazy val catsEffectVersion = "3.6.3"
+lazy val fs2Version        = "3.14.0"
 lazy val pureconfigVersion = "0.17.10"
 lazy val circeVersion      = "0.14.16"
 lazy val http4sVersion     = "0.23.37"
@@ -69,9 +70,11 @@ lazy val core = project
   .settings(
     name := "wiggly-gin-core",
     libraryDependencies ++= Seq(
-      // The domain is pure and needs only cats-core; cats-effect is here for the ports.
+      // The domain is pure and needs only cats-core. cats-effect is here for the ports, and
+      // fs2 for the one port that hands back a stream of a game's states.
       "org.typelevel" %% "cats-core"   % catsVersion,
-      "org.typelevel" %% "cats-effect" % catsEffectVersion
+      "org.typelevel" %% "cats-effect" % catsEffectVersion,
+      "co.fs2"        %% "fs2-core"    % fs2Version
     )
   )
 
