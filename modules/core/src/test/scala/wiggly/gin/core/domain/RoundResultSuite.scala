@@ -7,37 +7,17 @@ import wiggly.gin.core.domain.Rank.*
 import wiggly.gin.core.domain.Suit.*
 import wiggly.gin.gen.GameGen
 
-object RoundScoreSuite extends SimpleIOSuite with Checkers {
+object RoundResultSuite extends SimpleIOSuite with Checkers {
 
   private val seats   = Seats(Player.Two)
   private val knocker = seats.nonDealer
   private val holder  = seats.dealer
 
-  /** A card neither hand below wants, thrown away to end the turn the knock happens on. */
-  private val spare = Card(King, Clubs)
+  private def resultOf(knocks: List[Card], holds: List[Card]): RoundResult =
+    RoundResult.of(GameGen.knockKeeping(seats, knocks, holds))
 
-  /** A real deal arranged so that the knocker ends holding `knocks` and the other player holds
-    * `holds`, so that every score below is the score of a round that was actually played.
-    */
-  private def scoreOf(knocks: List[Card], holds: List[Card]): RoundScore = {
-    val upcard = knocks.last
-    val dealt  = knocks.init :+ spare
-    val rest   = Deck.ordered.cards.diff(dealt ++ holds ++ List(upcard))
-
-    val deck = Deck
-      .from(dealt ++ holds ++ List(upcard) ++ rest)
-      .getOrElse(sys.error("the cards this test chose do not make a deck"))
-
-    val played = for {
-      taken <- GameState(GameState.deal(deck, seats), knocker, Move.DrawDiscard)
-      ended <- GameState(taken, knocker, Move.Knock(spare))
-    } yield ended
-
-    played match {
-      case Right(round: GameState.Finished) => RoundScore.of(round)
-      case other => sys.error(s"the cards this test chose did not reach a knock: $other")
-    }
-  }
+  private def scoreOf(knocks: List[Card], holds: List[Card]): RoundScore =
+    resultOf(knocks, holds).score
 
   /** Two runs and four loose cards worth ten between them, which is a knock right on the mark. */
   private val tenOfDeadwood = List(
@@ -120,23 +100,46 @@ object RoundScoreSuite extends SimpleIOSuite with Checkers {
   }
 
   pureTest("gin allows no layoffs, so the cards that would have gone onto the run still count") {
-    expect.eql(scoreOf(gin, couldLayOffOntoGin).scored.map(_._2), Some(66 + 25))
+    val result = resultOf(gin, couldLayOffOntoGin)
+
+    expect.eql(result.defender.map(_.layoffs), Some(List.empty[Card])) and
+      expect.eql(result.score.scored.map(_._2), Some(66 + 25))
   }
 
-  test("a round that ran out of stock scores for nobody") {
+  pureTest("a knock puts both hands on the table") {
+    val result = resultOf(tenOfDeadwood, fortyTwoOfDeadwood)
+
+    expect.eql(result.outcome, Outcome.Knocked(knocker)) and
+      expect.eql(result.knocker.map(_.deadwoodValue), Some(10)) and
+      expect.eql(result.defender.map(_.deadwoodValue), Some(42))
+  }
+
+  pureTest("a knocker's melds are the ones the other player lays off onto") {
+    val result = resultOf(tenOfDeadwood, tenAgainstTheKnock)
+
+    expect.eql(result.knocker.map(_.melds.size), Some(2))
+  }
+
+  test("a round that ran out of stock reveals nothing and scores nothing") {
     forall(GameGen.ranOutOfStock) {
-      case round: GameState.Finished   => expect.eql(RoundScore.of(round), RoundScore.Dead)
+      case round: GameState.Finished =>
+        val result = RoundResult.of(round)
+
+        expect.eql(result.outcome, Outcome.Dead) and
+          expect.eql(result.knocker, None) and
+          expect.eql(result.defender, None) and
+          expect.eql(result.score, RoundScore.Dead)
       case round: GameState.InProgress => failure(s"the round never ran out of stock: $round")
     }
   }
 
-  test("the score of a round agrees with the way the round ended") {
+  test("the result of a round agrees with the way the round ended") {
     forall(GameGen.walked()) { state =>
       state match {
         case round: GameState.Finished =>
           round.outcome match {
-            case Outcome.Dead       => expect.eql(RoundScore.of(round).scored, None)
-            case Outcome.Knocked(_) => expect(RoundScore.of(round).scored.isDefined)
+            case Outcome.Dead       => expect.eql(RoundResult.of(round).score.scored, None)
+            case Outcome.Knocked(_) => expect(RoundResult.of(round).score.scored.isDefined)
           }
         case _: GameState.InProgress => success
       }
@@ -147,7 +150,7 @@ object RoundScoreSuite extends SimpleIOSuite with Checkers {
     forall(GameGen.walked()) { state =>
       state match {
         case round: GameState.Finished =>
-          expect(RoundScore.of(round).scored.forall((_, points) => points >= 0))
+          expect(RoundResult.of(round).score.scored.forall((_, points) => points >= 0))
         case _: GameState.InProgress => success
       }
     }
@@ -157,7 +160,7 @@ object RoundScoreSuite extends SimpleIOSuite with Checkers {
     forall(GameGen.walked()) { state =>
       state match {
         case round: GameState.Finished =>
-          (round.outcome, RoundScore.of(round)) match {
+          (round.outcome, RoundResult.of(round).score) match {
             case (Outcome.Knocked(who), RoundScore.Undercut(winner, _)) =>
               expect.eql(winner, who.other)
             case (Outcome.Knocked(who), score) => expect.eql(score.scored.map(_._1), Some(who))
@@ -167,4 +170,30 @@ object RoundScoreSuite extends SimpleIOSuite with Checkers {
       }
     }
   }
+
+  test("what a knock reveals is exactly the two hands that were held") {
+    forall(GameGen.walked()) { state =>
+      state match {
+        case round: GameState.Finished =>
+          round.outcome match {
+            case Outcome.Dead         => success
+            case Outcome.Knocked(who) => {
+              val result   = RoundResult.of(round)
+              val knocked  = result.knocker.toList.flatMap(shown)
+              val answered = result.defender.toList.flatMap(held)
+
+              expect.eql(knocked.sorted, round.table.hands(who).cards) and
+                expect.eql(answered.sorted, round.table.hands(who.other).cards)
+            }
+          }
+        case _: GameState.InProgress => success
+      }
+    }
+  }
+
+  private def shown(arrangement: Arrangement): List[Card] =
+    arrangement.melds.flatMap(_.cards.toList) ++ arrangement.deadwood
+
+  private def held(defence: Defence): List[Card] =
+    defence.melds.flatMap(_.cards.toList) ++ defence.layoffs ++ defence.deadwood
 }

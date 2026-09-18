@@ -1,7 +1,18 @@
 package wiggly.gin.gen
 
 import org.scalacheck.Gen
-import wiggly.gin.core.domain.{Card, Deck, GameState, Move, Phase, Player, Seats}
+import wiggly.gin.core.domain.{
+  Card,
+  Deck,
+  Game,
+  GameId,
+  GameState,
+  Move,
+  Phase,
+  Player,
+  Seats,
+  Token
+}
 
 object GameGen {
 
@@ -98,6 +109,89 @@ object GameGen {
           case Nil   => sys.error(s"a round with no knock available ran out of moves: $state")
           case moves => Gen.oneOf(moves).flatMap((_, next) => drain(next))
         }
+    }
+  }
+
+  /** A real deal arranged so that the knocker ends a knock holding exactly `knocks` and the other
+    * player holds exactly `holds`.
+    *
+    * The round is played through the machine rather than assembled, so every state a test asserts
+    * on is one a round can reach. The card thrown away to end the turn is whichever the two hands
+    * left behind, because a knock cannot discard the card it has just taken from the pile.
+    */
+  def knockKeeping(seats: Seats, knocks: List[Card], holds: List[Card]): GameState.Finished = {
+    val deal    = knockingDeal(knocks, holds)
+    val knocker = seats.nonDealer
+
+    val played = for {
+      taken <- GameState(GameState.deal(deal.deck, seats), knocker, Move.DrawDiscard)
+      ended <- GameState(taken, knocker, Move.Knock(deal.spare))
+    } yield ended
+
+    played match {
+      case Right(round: GameState.Finished) => round
+      case other => sys.error(s"the cards this test chose did not reach a knock: $other")
+    }
+  }
+
+  /** A deck that deals the hands above, and the card the knocker throws to end the turn.
+    *
+    * It is the deck rather than the finished round, so that a test can play the same knock through
+    * whatever drives the round: the state machine directly, or a whole game.
+    */
+  final case class KnockingDeal(deck: Deck, spare: Card)
+
+  def knockingDeal(knocks: List[Card], holds: List[Card]): KnockingDeal = {
+    val upcard = knocks.last
+    val spare  = Deck.ordered.cards.diff(knocks ++ holds).head
+    val dealt  = knocks.init :+ spare
+    val rest   = Deck.ordered.cards.diff(dealt ++ holds ++ List(upcard))
+
+    val deck = Deck
+      .from(dealt ++ holds ++ List(upcard) ++ rest)
+      .getOrElse(sys.error("the cards this test chose do not make a deck"))
+
+    KnockingDeal(deck, spare)
+  }
+
+  val gameId: Gen[GameId] = Gen.uuid.map(id => GameId(id.toString))
+
+  val token: Gen[Token] = Gen.uuid.map(id => Token(id.toString))
+
+  /** A game created, joined, and then played some way in by taking legal moves at random.
+    *
+    * Every move is handed a fresh deck for the deal it might set off, which is what the service
+    * does for the same reason: the store applies a pure change, so the cards for the next round
+    * have to arrive with the move.
+    */
+  def gamePlayed(steps: Int): Gen[Game] = for {
+    id    <- gameId
+    host  <- token
+    guest <- token
+    first <- deck
+    game = Game
+      .AwaitingOpponent(id, host)
+      .joined(guest, first)
+      .getOrElse(sys.error("a waiting game refused an opponent"))
+    played <- advance(game, steps)
+  } yield played
+
+  private def advance(game: Game, remaining: Int): Gen[Game] = {
+    game match {
+      case playing: Game.InPlay if remaining > 0 =>
+        legalMoves(playing.round) match {
+          case Nil   => Gen.const(game)
+          case moves =>
+            for {
+              (move, _) <- Gen.oneOf(moves)
+              next      <- deck
+              stepped = playing
+                .played(playing.round.onTurn, move, next)
+                .getOrElse(sys.error(s"a legal move was refused: $move"))
+              rest <- advance(stepped, remaining - 1)
+            } yield rest
+        }
+      case settled => Gen.const(settled)
     }
   }
 
