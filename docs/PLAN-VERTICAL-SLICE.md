@@ -56,8 +56,13 @@ final case class Tokens(one: Token, two: Token) {
   def holder(token: Token): Option[Player]
 }
 
-enum Game {
-  case AwaitingOpponent(id: GameId, host: Token)
+sealed trait Game {
+  def id: GameId
+  def holder(token: Token): Option[Player]
+}
+
+object Game {
+  case class AwaitingOpponent(id: GameId, host: Token)
   case InPlay(
       id: GameId,
       tokens: Tokens,
@@ -65,9 +70,13 @@ enum Game {
       round: GameState.InProgress,
       previous: Option[RoundResult]
   )
-  case Over(id: GameId, tokens: Tokens, ledger: Match.Finished, previous: RoundResult)
+  case class Over(id: GameId, tokens: Tokens, ledger: Match.Finished, previous: RoundResult)
 }
 ```
+
+A sealed trait rather than the enum this plan first drew, and for the reason `GameState` is one: a
+case that carries `id` cannot sit under an enum that also declares `def id`, because the case's
+field would be overriding it. Implementing an abstract member has no such problem.
 
 The invariant worth naming: a stored game never holds a finished round. The moment a round ends it
 is scored and the next is dealt, or the match is over and there is no round to hold. That is why
@@ -102,8 +111,10 @@ object RoundResult {
 }
 ```
 
-`RoundScore.of` becomes `RoundResult.of(round).score`. Every number `RoundScoreSuite` pins stays
-the same, which is the check that the move was a refactor.
+`RoundScore.of` moved here rather than delegating, because once `RoundResult.of` existed the only
+caller left for it was a test. `RoundScoreSuite` became `RoundResultSuite` and every number it
+pinned stayed the same, which is the check that the move was a refactor. `RoundScore` keeps the two
+bonuses, because they belong to the score.
 
 `PlayerView` is the redacted state, and the redaction is in the shape rather than in a filter:
 
@@ -181,6 +192,12 @@ trait GameEvents[F[_]] {
   def watch(id: GameId): Stream[F, Game]
 }
 
+// A signal per game rather than the topic this plan first named. An event is a whole game, so a
+// watcher that falls behind wants the state as it now is and not the states it missed. A signal
+// gives that with no buffer to grow and no publisher to hold up, and because it holds the current
+// value, `discrete` opens with it: there is no window between asking and listening to close, and
+// no subscribe-then-read dance to get right.
+
 trait Shuffler[F[_]] { def shuffled: F[Deck] }
 
 trait Secrets[F[_]] {
@@ -204,8 +221,8 @@ publishes it. What it returns is the mover's own view of what they did, so a cli
 request to see the result of its move. Creating and joining publish too, because a host waiting on
 the stream wants to know that the game started.
 
-The subscription in `watch` is taken before the current state is read, so no change can slip
-between the two. A client may see the same state twice and never a stale one after a fresh one.
+A watcher is handed the game as it stands and then every state after it, which the signal gives
+for nothing: nothing has to be ordered against a separate read.
 
 **Tests.** The fakes are `Ref`-backed and live in `wiggly.gin.fake` beside the generators, which
 the server module already shares through the `test->test` dependency. `FixedShuffler` hands out a
@@ -281,6 +298,8 @@ other response in this server already uses.
 | `AlreadyFull` | 409 |
 | `NotInPlay` | 409 |
 | `Illegal(error)` | 422, with the rule's own name in the body |
+| No token at all | 401, which the fault table has no case for because the service is never asked |
+| A body that is not a move | 400 |
 
 The stream carries a comment heartbeat on an interval, because an idle connection through a proxy
 is dropped. That is the one new configuration value, `GIN_HTTP_EVENT_HEARTBEAT`, defaulting to 15
@@ -295,6 +314,25 @@ collects every card-shaped object anywhere in the JSON. Those cards must be a su
 player is entitled to see, which is their own hand, the upcard, and whatever the end of a round
 made public. It scans the payload rather than the Scala value so that a field added later is
 covered whether or not anybody remembers this suite.
+
+One thing that plan did not foresee. The claims about the stock and the other hand are made against
+the payload with `previous` set aside, because a knock puts both hands on the table and those cards
+have since been shuffled back into a fresh deal, so they turn up in the stock of the round in play.
+They say nothing about where anything is now, and the version of the claim that keeps `previous` in
+is simply false. The first test, which allows nothing but the player's own hand and the upcard,
+runs on games that have no previous round.
+
+## Where the code came out different
+
+Everything above is what landed, with these exceptions, each noted where it belongs:
+
+| The plan said | The code does | Why |
+| --- | --- | --- |
+| `enum Game` | A sealed trait | An enum case cannot carry `id` beside an enum-level `def id`. |
+| `RoundScore.of` delegates | It moved to `RoundResult.of` | Delegating would have left it with no caller but a test. |
+| A topic per game, subscribed before the current state is read | A signal per game | A signal holds the current value, so the ordering problem does not arise, and a slow watcher costs nothing. |
+| Five faults and five statuses | Seven answers | A request with no token is 401 and a body that is not a move is 400, neither of which reaches the service. |
+| The redaction check covers the whole payload | It sets `previous` aside for two of its three claims | The previous round is public and its cards have been redealt, so they appear in the stock of the round in play. |
 
 ## 5. The documents
 

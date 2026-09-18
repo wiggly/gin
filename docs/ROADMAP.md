@@ -1,13 +1,14 @@
 # Roadmap
 
-Where the work goes next, and why in this order. Steps 1–4 are pure code in `core` with no `IO`;
-step 5 is where the `server` adapter finally has something to expose.
+Where the work went, and why in this order. Steps 1 to 4 are pure code in `core` with no `IO`;
+step 5 is where the `server` adapter finally had something to expose.
 
-Status: the `server` module exists and serves `/health`, with `/api/v1` reserved and currently
-backed by `HttpRoutes.empty`. `core` holds the card model, the melds and the deadwood search, the
-round as a state machine, and the scoring that adds rounds up into a match: steps 1 to 4 are done.
-Three working plans record how, one per step: [cards and melds](PLAN-CARDS-AND-MELDS.md), [the
-state machine](PLAN-STATE-MACHINE.md) and [scoring](PLAN-SCORING.md).
+Status: steps 1 to 5 are done. `core` holds the card model, the melds and the deadwood search, the
+round as a state machine, the scoring that adds rounds up into a match, and the ports and service
+that drive all of it. `server` serves a whole game over HTTP, with a stream a player can watch.
+Four working plans record how, one per step: [cards and melds](PLAN-CARDS-AND-MELDS.md), [the state
+machine](PLAN-STATE-MACHINE.md), [scoring](PLAN-SCORING.md) and [the vertical
+slice](PLAN-VERTICAL-SLICE.md).
 
 The rules of the round and of the match are written down once, in [the game flow
 document](GAME-FLOW.md). It is the permanent reference, and the plans point at it rather than
@@ -87,39 +88,44 @@ ends.
 Tests: each outcome and each bonus worked by hand, with properties for the arithmetic and for the
 three lists a defence splits a hand into.
 
-## 5. Ports and the first vertical slice (`core` + `server`)
+## 5. Ports and the first vertical slice (`core` + `server`) — done
 
-Ports: `GameRepository` (in-memory `Ref` adapter to begin with) and a `GameService` the HTTP layer
-drives. `GameService` is also where the match ledger and the round in play are held together, which
-is the one thing step 4 left for somebody else to do. Both traits go in `core/port`, the code that
-drives the domain behind `GameService` goes in `core/service`, and the `Ref` store goes in
-`server/adapter/memory` next to the http adapter. The README explains the layout.
+A client creates a game, a second player joins it, and the two play a whole match of rounds to a
+hundred. Five ports: `GameService` is the inbound one the HTTP layer drives, and `GameRepository`,
+`GameEvents`, `Shuffler` and `Secrets` are the outbound ones the adapters satisfy. `Games` in
+`core/service` holds the ledger and the round in play together, which is the job step 4 left for
+whoever holds a game. The store and the broker are in `server/adapter/memory` and the shuffle and
+the tokens in `server/adapter/random`. The README has the layout and the routes; [a working
+plan](PLAN-VERTICAL-SLICE.md) records the files and the order they were written in.
 
-The design point that matters here: **a player's view must be redacted.** The opponent's hand and
-the order of the stock are not the requester's to see. Make that a distinct type — `PlayerView`,
-never `GameState` — so it cannot leak by accident, and test that it cannot.
+The design point that mattered: **a player's view is redacted.** `PlayerView` is a distinct type
+and never a `GameState`, the other player is a count and the stock is a count, and neither `Game`
+nor `GameState` has an encoder at all, so the other shapes cannot reach a client by accident. The
+check runs over the encoded JSON rather than the Scala value, so a field added later is covered
+whether or not anybody remembers the suite.
 
-Then the routes that have been waiting:
+## Decisions that were open
 
-- `POST /api/v1/games` — create
-- `POST /api/v1/games/{id}/moves` — play
-- `GET  /api/v1/games/{id}` — the redacted view
+Both were settled at the start of step 5, before the routes hardened.
 
-wired into `Main` in place of `HttpRoutes.empty`.
+**Transport.** REST for the moves and a server-sent event stream for the state. A move is a POST
+with a body and a reply, so duplex framing bought nothing, and the only push a client needs is
+"the state changed, here is your view". The broker sits behind `GameEvents`, so a WebSocket is an
+adapter beside the stream rather than a change to `core`.
 
-## Open decisions
+**Identity.** An opaque token per seat, minted from a secure source and stored with the game. No
+secret to configure and no key to rotate, and a leaked token is withdrawn by forgetting it.
 
-Both are additive to steps 1–4, so neither blocks the domain work, but both want settling before the
-routes in step 5 harden.
-
-**Transport.** REST alone means a player polls to discover that the opponent has moved. A WebSocket
-per player fed by an fs2 `Topic` is the natural fit for a multiplayer game and Ember supports it
-directly — but it changes the shape of the API.
-
-**Identity.** "Player 2 joins game X" needs some notion of who is asking. A signed opaque token is
-enough to start with. Redaction in step 5 is meaningless without it.
+What is still open is identity in the larger sense: a token says which seat is asking and nothing
+about who holds it, so there are no accounts, nothing stops the host joining their own game, and
+anybody who learns a game id can take the second seat. None of that makes the redaction weaker than
+it claims to be.
 
 ## Later
 
-- Persistent `GameRepository` adapter, once the in-memory one is outgrown.
+- Persistent `GameRepository` adapter, once the in-memory one is outgrown. A game and a token both
+  last only as long as the process does.
+- A WebSocket adapter over `GameEvents`, if a client ever wants one connection for everything.
+- A lobby: listing games, matchmaking, and some way to find a game nobody told you the id of.
+- Middleware in `GinApi` for CORS, rate limiting and a request id, when somebody needs them.
 - Container packaging (sbt-native-packager), per the 12-factor goal in `CLAUDE.md`.
