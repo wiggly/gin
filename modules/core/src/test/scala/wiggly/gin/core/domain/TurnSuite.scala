@@ -34,13 +34,13 @@ object TurnSuite extends SimpleIOSuite with Checkers {
   test("the player on turn holds eleven cards while owing a discard and ten otherwise") {
     forall(GameGen.partWayThrough(12)) { state =>
       state match {
-        case GameState.InProgress(table, phase) =>
-          val expected = phase match {
+        case round: GameState.InProgress =>
+          val expected = round.phase match {
             case Phase.AwaitingDiscard(_, _) => 11
             case _                           => 10
           }
 
-          expect.eql(table.hands(phase.onTurn).size, expected)
+          expect.eql(round.table.hands(round.onTurn).size, expected)
         case _: GameState.Finished => success
       }
     }
@@ -49,12 +49,12 @@ object TurnSuite extends SimpleIOSuite with Checkers {
   test("the turn passes to the other player after a discard and at no other time") {
     forall(GameGen.partWayThrough(12)) { state =>
       state match {
-        case GameState.InProgress(_, phase) =>
+        case round: GameState.InProgress =>
           expect(GameGen.legalMoves(state).forall {
-            case (Move.Discard(_), GameState.InProgress(_, next)) =>
-              next.onTurn == phase.onTurn.other
-            case (_, GameState.InProgress(_, next)) => next.onTurn == phase.onTurn
-            case (_, _: GameState.Finished)         => true
+            case (Move.Discard(_), next: GameState.InProgress) =>
+              next.onTurn == round.onTurn.other
+            case (_, next: GameState.InProgress) => next.onTurn == round.onTurn
+            case (_, _: GameState.Finished)      => true
           })
         case _: GameState.Finished => success
       }
@@ -64,9 +64,9 @@ object TurnSuite extends SimpleIOSuite with Checkers {
   test("the player who is not on turn is refused whatever they try") {
     forall(GameGen.partWayThrough(12)) { state =>
       state match {
-        case GameState.InProgress(_, phase) =>
+        case round: GameState.InProgress =>
           expect(everyMove.forall { move =>
-            GameState(state, phase.onTurn.other, move) == Left(GameError.NotYourTurn)
+            GameState(state, round.onTurn.other, move) == Left(GameError.NotYourTurn)
           })
         case _: GameState.Finished => success
       }
@@ -88,13 +88,16 @@ object TurnSuite extends SimpleIOSuite with Checkers {
     }
   }
 
-  private val dealt  = GameState.deal(Deck.ordered)
+  private val seats     = Seats(Player.Two)
+  private val nonDealer = seats.nonDealer
+
+  private val dealt  = GameState.deal(Deck.ordered, seats)
   private val upcard = dealt.table.discard.head
-  private val taken  = GameState(dealt, Player.NonDealer, Move.DrawDiscard)
+  private val taken  = GameState(dealt, nonDealer, Move.DrawDiscard)
 
   pureTest("a card taken from the pile cannot go straight back onto it") {
     expect.eql(
-      taken.flatMap(GameState(_, Player.NonDealer, Move.Discard(upcard))),
+      taken.flatMap(GameState(_, nonDealer, Move.Discard(upcard))),
       Left(GameError.CannotDiscardDrawnCard(upcard))
     )
   }
@@ -103,7 +106,7 @@ object TurnSuite extends SimpleIOSuite with Checkers {
     val absent = Card(King, Clubs)
 
     expect.eql(
-      taken.flatMap(GameState(_, Player.NonDealer, Move.Discard(absent))),
+      taken.flatMap(GameState(_, nonDealer, Move.Discard(absent))),
       Left(GameError.CardNotHeld(absent))
     )
   }

@@ -36,13 +36,14 @@ enum Phase {
     */
   case AwaitingDiscard(player: Player, taken: Option[Card])
 
-  /** Whose move it is. [[AwaitingOpeningDraw]] names nobody because it is always the non-dealer's,
-    * both players having just refused the upcard.
+  /** Whose move it is. [[AwaitingOpeningDraw]] is the one phase that names nobody, because it is
+    * always the non-dealer's, both players having just refused the upcard. That is the only rule
+    * in the round that reads the seating, and it is why this needs one.
     */
-  def onTurn: Player = {
+  def onTurn(seats: Seats): Player = {
     this match {
       case UpcardOffered(player)      => player
-      case AwaitingOpeningDraw        => Player.NonDealer
+      case AwaitingOpeningDraw        => seats.nonDealer
       case AwaitingDraw(player)       => player
       case AwaitingDiscard(player, _) => player
     }
@@ -81,13 +82,20 @@ object Outcome {
   */
 sealed trait GameState {
   def table: Table
+
+  /** Who dealt this round. A round that cannot say so is a round that has to be carried everywhere
+    * beside something that can.
+    */
+  def seats: Seats
 }
 
 object GameState {
 
-  final case class InProgress(table: Table, phase: Phase) extends GameState
+  final case class InProgress(table: Table, seats: Seats, phase: Phase) extends GameState {
+    def onTurn: Player = phase.onTurn(seats)
+  }
 
-  final case class Finished(table: Table, outcome: Outcome) extends GameState
+  final case class Finished(table: Table, seats: Seats, outcome: Outcome) extends GameState
 
   /** The cards a player holds between turns. */
   val HandSize: Int = 10
@@ -106,51 +114,58 @@ object GameState {
     * non-dealer is dealt first and is offered the upcard first, which is the only asymmetry between
     * the two seats.
     */
-  def deal(deck: Deck): InProgress = {
-    val (nonDealer, afterNonDealer) = deck.cards.splitAt(HandSize)
-    val (dealer, afterDealer)       = afterNonDealer.splitAt(HandSize)
-    val (upcard, stock)             = afterDealer.splitAt(1)
+  def deal(deck: Deck, seats: Seats): InProgress = {
+    val (first, afterFirst)   = deck.cards.splitAt(HandSize)
+    val (second, afterSecond) = afterFirst.splitAt(HandSize)
+    val (upcard, stock)       = afterSecond.splitAt(1)
 
-    InProgress(
-      Table(stock, upcard, Hands(Hand.of(dealer), Hand.of(nonDealer))),
-      Phase.UpcardOffered(Player.NonDealer)
-    )
+    val hands = seats.nonDealer match {
+      case Player.One => Hands(Hand.of(first), Hand.of(second))
+      case Player.Two => Hands(Hand.of(second), Hand.of(first))
+    }
+
+    InProgress(Table(stock, upcard, hands), seats, Phase.UpcardOffered(seats.nonDealer))
   }
 
   /** This move played by this player, or why it was refused. */
   def apply(state: GameState, player: Player, move: Move): Either[GameError, GameState] = {
     state match {
-      case _: Finished              => Left(GameError.RoundOver)
-      case InProgress(table, phase) =>
-        if (player =!= phase.onTurn) Left(GameError.NotYourTurn)
-        else step(table, phase, move)
+      case _: Finished                             => Left(GameError.RoundOver)
+      case state @ InProgress(table, seats, phase) =>
+        if (player =!= state.onTurn) Left(GameError.NotYourTurn)
+        else step(table, seats, phase, move)
     }
   }
 
-  private def step(table: Table, phase: Phase, move: Move): Either[GameError, GameState] = {
+  private def step(
+      table: Table,
+      seats: Seats,
+      phase: Phase,
+      move: Move
+  ): Either[GameError, GameState] = {
     (phase, move) match {
-      case (Phase.UpcardOffered(player), Move.DrawDiscard)    => takeUpcard(table, player)
-      case (Phase.UpcardOffered(Player.NonDealer), Move.Pass) =>
-        Right(InProgress(table, Phase.UpcardOffered(Player.Dealer)))
-      case (Phase.UpcardOffered(Player.Dealer), Move.Pass) =>
-        Right(InProgress(table, Phase.AwaitingOpeningDraw))
+      case (Phase.UpcardOffered(player), Move.DrawDiscard) => takeUpcard(table, seats, player)
+      case (Phase.UpcardOffered(player), Move.Pass) if player === seats.nonDealer =>
+        Right(InProgress(table, seats, Phase.UpcardOffered(seats.dealer)))
+      case (Phase.UpcardOffered(_), Move.Pass) =>
+        Right(InProgress(table, seats, Phase.AwaitingOpeningDraw))
       case (Phase.UpcardOffered(_), Move.DrawStock) => Left(GameError.StockClosed)
       case (Phase.UpcardOffered(_), _)              => Left(GameError.MustDraw)
 
-      case (Phase.AwaitingOpeningDraw, Move.DrawStock)   => drawStock(table, Player.NonDealer)
+      case (Phase.AwaitingOpeningDraw, Move.DrawStock)   => drawStock(table, seats, seats.nonDealer)
       case (Phase.AwaitingOpeningDraw, Move.DrawDiscard) => Left(GameError.PileClosed)
       case (Phase.AwaitingOpeningDraw, Move.Pass)        => Left(GameError.NothingToPass)
       case (Phase.AwaitingOpeningDraw, _)                => Left(GameError.MustDraw)
 
-      case (Phase.AwaitingDraw(player), Move.DrawStock)   => drawStock(table, player)
-      case (Phase.AwaitingDraw(player), Move.DrawDiscard) => takeUpcard(table, player)
+      case (Phase.AwaitingDraw(player), Move.DrawStock)   => drawStock(table, seats, player)
+      case (Phase.AwaitingDraw(player), Move.DrawDiscard) => takeUpcard(table, seats, player)
       case (Phase.AwaitingDraw(_), Move.Pass)             => Left(GameError.NothingToPass)
       case (Phase.AwaitingDraw(_), _)                     => Left(GameError.MustDraw)
 
       case (Phase.AwaitingDiscard(player, taken), Move.Discard(card)) =>
-        discard(table, player, taken, card, ending = false)
+        discard(table, seats, player, taken, card, ending = false)
       case (Phase.AwaitingDiscard(player, taken), Move.Knock(card)) =>
-        discard(table, player, taken, card, ending = true)
+        discard(table, seats, player, taken, card, ending = true)
       case (Phase.AwaitingDiscard(_, _), Move.Pass) => Left(GameError.NothingToPass)
       case (Phase.AwaitingDiscard(_, _), _)         => Left(GameError.MustDiscard)
     }
@@ -159,13 +174,18 @@ object GameState {
   /** The pile is empty only between a take and the discard that follows it, and no draw is legal
     * there, so the refusal below is unreachable rather than a rule of its own.
     */
-  private def takeUpcard(table: Table, player: Player): Either[GameError, GameState] = {
+  private def takeUpcard(
+      table: Table,
+      seats: Seats,
+      player: Player
+  ): Either[GameError, GameState] = {
     table.discard match {
       case Nil          => Left(GameError.PileClosed)
       case card :: rest =>
         Right(
           InProgress(
             held(table.copy(discard = rest), player, card),
+            seats,
             Phase.AwaitingDiscard(player, Some(card))
           )
         )
@@ -175,13 +195,18 @@ object GameState {
   /** A round dies on the discard that leaves [[StockFloor]] cards, so a draw never finds the stock
     * empty and the refusal below is unreachable in the same way.
     */
-  private def drawStock(table: Table, player: Player): Either[GameError, GameState] = {
+  private def drawStock(
+      table: Table,
+      seats: Seats,
+      player: Player
+  ): Either[GameError, GameState] = {
     table.stock match {
       case Nil          => Left(GameError.StockClosed)
       case card :: rest =>
         Right(
           InProgress(
             held(table.copy(stock = rest), player, card),
+            seats,
             Phase.AwaitingDiscard(player, None)
           )
         )
@@ -193,6 +218,7 @@ object GameState {
 
   private def discard(
       table: Table,
+      seats: Seats,
       player: Player,
       taken: Option[Card],
       card: Card,
@@ -206,19 +232,24 @@ object GameState {
           val settled =
             table.copy(discard = card :: table.discard, hands = table.hands.updated(player, hand))
 
-          if (ending) knock(settled, player, hand)
-          else if (settled.stock.size <= StockFloor) Right(Finished(settled, Outcome.Dead))
-          else Right(InProgress(settled, Phase.AwaitingDraw(player.other)))
+          if (ending) knock(settled, seats, player, hand)
+          else if (settled.stock.size <= StockFloor) Right(Finished(settled, seats, Outcome.Dead))
+          else Right(InProgress(settled, seats, Phase.AwaitingDraw(player.other)))
         }
       }
     }
   }
 
-  private def knock(table: Table, player: Player, hand: Hand): Either[GameError, GameState] = {
+  private def knock(
+      table: Table,
+      seats: Seats,
+      player: Player,
+      hand: Hand
+  ): Either[GameError, GameState] = {
     val deadwood = hand.deadwoodValue
 
     if (deadwood > KnockThreshold) Left(GameError.CannotKnock(deadwood))
-    else Right(Finished(table, Outcome.Knocked(player)))
+    else Right(Finished(table, seats, Outcome.Knocked(player)))
   }
 
   given Eq[GameState] = Eq.fromUniversalEquals

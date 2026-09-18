@@ -48,17 +48,17 @@ object HandSuite extends SimpleIOSuite with Checkers {
 
   test("changing one player's hand leaves the other player's alone") {
     val twoHands = CardGen.distinctCards(HandGen.HandSize * 2 + 1).map { cards =>
-      val (dealer, rest) = cards.splitAt(HandGen.HandSize)
+      val (first, rest) = cards.splitAt(HandGen.HandSize)
 
-      (Hand.of(dealer), Hand.of(rest.tail), rest.head)
+      (Hand.of(first), Hand.of(rest.tail), rest.head)
     }
 
-    forall(twoHands) { (dealer, nonDealer, spare) =>
-      val hands   = Hands(dealer, nonDealer)
-      val changed = hands.updated(Player.Dealer, dealer.add(spare))
+    forall(twoHands) { (one, two, spare) =>
+      val hands   = Hands(one, two)
+      val changed = hands.updated(Player.One, one.add(spare))
 
-      expect.eql(changed(Player.Dealer), dealer.add(spare)) and
-        expect.eql(changed(Player.NonDealer), nonDealer)
+      expect.eql(changed(Player.One), one.add(spare)) and
+        expect.eql(changed(Player.Two), two)
     }
   }
 }

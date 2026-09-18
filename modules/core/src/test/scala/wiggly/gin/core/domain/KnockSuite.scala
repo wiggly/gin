@@ -1,7 +1,6 @@
 package wiggly.gin.core.domain
 
 import weaver.SimpleIOSuite
-import wiggly.gin.core.domain.Player.NonDealer
 import wiggly.gin.core.domain.Rank.*
 import wiggly.gin.core.domain.Suit.*
 
@@ -13,6 +12,9 @@ object KnockSuite extends SimpleIOSuite {
     * last card of the hand it means to keep and throws this one instead.
     */
   private val spare = Card(King, Clubs)
+
+  private val seats     = Seats(Player.Two)
+  private val nonDealer = seats.nonDealer
 
   /** A real deal, arranged so that the non-dealer ends a knock holding exactly `kept`.
     *
@@ -29,14 +31,14 @@ object KnockSuite extends SimpleIOSuite {
       .from(hand ++ dealerHand ++ List(upcard) ++ stock)
       .getOrElse(sys.error("the cards this test chose do not make a deck"))
 
-    GameState(GameState.deal(deck), NonDealer, Move.DrawDiscard)
-      .flatMap(GameState(_, NonDealer, Move.Knock(spare)))
+    GameState(GameState.deal(deck, seats), nonDealer, Move.DrawDiscard)
+      .flatMap(GameState(_, nonDealer, Move.Knock(spare)))
   }
 
   private def outcomeOf(result: Either[GameError, GameState]): Either[GameError, Option[Outcome]] =
     result.map {
-      case GameState.Finished(_, outcome) => Some(outcome)
-      case _: GameState.InProgress        => None
+      case GameState.Finished(_, _, outcome) => Some(outcome)
+      case _: GameState.InProgress           => None
     }
 
   /** Two runs and four loose cards worth ten between them. */
@@ -61,13 +63,13 @@ object KnockSuite extends SimpleIOSuite {
 
   pureTest("a knock leaving exactly ten deadwood is allowed") {
     expect.eql(
-      knockKeeping(tenOfDeadwood).map(_.table.hands(NonDealer).deadwoodValue),
+      knockKeeping(tenOfDeadwood).map(_.table.hands(nonDealer).deadwoodValue),
       Right(10)
     )
   }
 
   pureTest("a knock leaving exactly ten deadwood ends the round") {
-    expect.eql(outcomeOf(knockKeeping(tenOfDeadwood)), Right(Some(Outcome.Knocked(NonDealer))))
+    expect.eql(outcomeOf(knockKeeping(tenOfDeadwood)), Right(Some(Outcome.Knocked(nonDealer))))
   }
 
   pureTest("a knock leaving eleven deadwood is one pip too many") {
@@ -75,15 +77,15 @@ object KnockSuite extends SimpleIOSuite {
   }
 
   pureTest("a hand that melds completely knocks with nothing left, which is gin") {
-    expect.eql(knockKeeping(gin).map(_.table.hands(NonDealer).deadwoodValue), Right(0))
+    expect.eql(knockKeeping(gin).map(_.table.hands(nonDealer).deadwoodValue), Right(0))
   }
 
   pureTest("a finished round keeps the knocker's hand for the scoring to read") {
-    expect.eql(knockKeeping(gin).map(_.table.hands(NonDealer).cards), Right(gin.sorted))
+    expect.eql(knockKeeping(gin).map(_.table.hands(nonDealer).cards), Right(gin.sorted))
   }
 
   pureTest("a finished round keeps the other player's hand too") {
-    expect.eql(knockKeeping(gin).map(_.table.hands(Player.Dealer).size), Right(GameState.HandSize))
+    expect.eql(knockKeeping(gin).map(_.table.hands(seats.dealer).size), Right(GameState.HandSize))
   }
 
   pureTest("a finished round refuses every move from either player") {

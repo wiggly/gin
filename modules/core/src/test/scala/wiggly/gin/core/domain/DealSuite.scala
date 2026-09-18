@@ -8,8 +8,8 @@ object DealSuite extends SimpleIOSuite with Checkers {
 
   test("the deal gives ten cards to each player") {
     forall(GameGen.dealt) { state =>
-      expect.eql(state.table.hands(Player.Dealer).size, 10) and
-        expect.eql(state.table.hands(Player.NonDealer).size, 10)
+      expect.eql(state.table.hands(state.seats.dealer).size, 10) and
+        expect.eql(state.table.hands(state.seats.nonDealer).size, 10)
     }
   }
 
@@ -27,7 +27,7 @@ object DealSuite extends SimpleIOSuite with Checkers {
 
   test("a round opens with the upcard offered to the non-dealer") {
     forall(GameGen.dealt) { state =>
-      expect.eql(GameGen.phase(state), Some(Phase.UpcardOffered(Player.NonDealer)))
+      expect.eql(GameGen.phase(state), Some(Phase.UpcardOffered(state.seats.nonDealer)))
     }
   }
 }

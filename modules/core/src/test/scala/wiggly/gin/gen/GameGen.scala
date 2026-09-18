@@ -1,7 +1,7 @@
 package wiggly.gin.gen
 
 import org.scalacheck.Gen
-import wiggly.gin.core.domain.{Card, Deck, GameState, Move, Phase}
+import wiggly.gin.core.domain.{Card, Deck, GameState, Move, Phase, Player, Seats}
 
 object GameGen {
 
@@ -10,7 +10,15 @@ object GameGen {
     Deck.from(cards).getOrElse(sys.error("generator produced cards that are not a deck"))
   )
 
-  val dealt: Gen[GameState] = deck.map(GameState.deal)
+  /** Which of the two players dealt. Every round is generated against both, because the opening
+    * is the one part of the round that reads the seating.
+    */
+  val seats: Gen[Seats] = Gen.oneOf(Player.values.toList).map(Seats.apply)
+
+  val dealt: Gen[GameState] = for {
+    deck  <- deck
+    seats <- seats
+  } yield GameState.deal(deck, seats)
 
   /** What a round is waiting for, or nothing once it is over.
     *
@@ -20,8 +28,8 @@ object GameGen {
     */
   def phase(state: GameState): Option[Phase] = {
     state match {
-      case GameState.InProgress(_, phase) => Some(phase)
-      case _: GameState.Finished          => None
+      case GameState.InProgress(_, _, phase) => Some(phase)
+      case _: GameState.Finished             => None
     }
   }
 
@@ -44,14 +52,14 @@ object GameGen {
     */
   def legalMoves(state: GameState): List[(Move, GameState)] = {
     state match {
-      case _: GameState.Finished              => Nil
-      case GameState.InProgress(table, phase) => {
-        val discards = table.hands(phase.onTurn).cards.flatMap { card =>
+      case _: GameState.Finished       => Nil
+      case round: GameState.InProgress => {
+        val discards = round.table.hands(round.onTurn).cards.flatMap { card =>
           List(Move.Discard(card), Move.Knock(card))
         }
 
         (List(Move.DrawStock, Move.DrawDiscard, Move.Pass) ++ discards).flatMap { move =>
-          GameState(state, phase.onTurn, move).toOption.map(move -> _)
+          GameState(state, round.onTurn, move).toOption.map(move -> _)
         }
       }
     }

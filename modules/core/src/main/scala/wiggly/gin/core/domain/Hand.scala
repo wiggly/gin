@@ -50,24 +50,24 @@ object Hand {
   given Show[Hand] = Show.fromToString
 }
 
-/** Both players' hands, keyed by seat so that a lookup cannot fail. */
-final case class Hands(dealer: Hand, nonDealer: Hand) {
+/** Both players' hands, keyed by player so that a lookup cannot fail. */
+final case class Hands(one: Hand, two: Hand) {
 
   def apply(player: Player): Hand = {
     player match {
-      case Player.Dealer    => dealer
-      case Player.NonDealer => nonDealer
+      case Player.One => one
+      case Player.Two => two
     }
   }
 
   def updated(player: Player, hand: Hand): Hands = {
     player match {
-      case Player.Dealer    => copy(dealer = hand)
-      case Player.NonDealer => copy(nonDealer = hand)
+      case Player.One => copy(one = hand)
+      case Player.Two => copy(two = hand)
     }
   }
 
-  def cards: List[Card] = dealer.cards ++ nonDealer.cards
+  def cards: List[Card] = one.cards ++ two.cards
 }
 
 object Hands {

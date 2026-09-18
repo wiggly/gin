@@ -1,14 +1,17 @@
 package wiggly.gin.core.domain
 
 import weaver.SimpleIOSuite
-import wiggly.gin.core.domain.Player.{Dealer, NonDealer}
 
 object DeadRoundSuite extends SimpleIOSuite {
 
+  private val seats     = Seats(Player.Two)
+  private val dealer    = seats.dealer
+  private val nonDealer = seats.nonDealer
+
   private val opened = for {
-    passed  <- GameState(GameState.deal(Deck.ordered), NonDealer, Move.Pass)
-    refused <- GameState(passed, Dealer, Move.Pass)
-    drawn   <- GameState(refused, NonDealer, Move.DrawStock)
+    passed  <- GameState(GameState.deal(Deck.ordered, seats), nonDealer, Move.Pass)
+    refused <- GameState(passed, dealer, Move.Pass)
+    drawn   <- GameState(refused, nonDealer, Move.DrawStock)
   } yield drawn
 
   /** The round played straight down the stock: draw, discard, draw, discard, stopping at the point
@@ -18,7 +21,7 @@ object DeadRoundSuite extends SimpleIOSuite {
     @annotation.tailrec
     def drain(state: GameState): GameState = {
       state match {
-        case GameState.InProgress(table, Phase.AwaitingDiscard(player, _))
+        case GameState.InProgress(table, _, Phase.AwaitingDiscard(player, _))
             if table.stock.size > GameState.StockFloor => {
           val turn = for {
             discarded <- GameState(state, player, Move.Discard(table.hands(player).cards.head))
@@ -36,7 +39,7 @@ object DeadRoundSuite extends SimpleIOSuite {
 
   private def owed: (Player, Card) = {
     owingTheLastDiscard match {
-      case GameState.InProgress(table, Phase.AwaitingDiscard(player, _)) =>
+      case GameState.InProgress(table, _, Phase.AwaitingDiscard(player, _)) =>
         (player, table.hands(player).cards.head)
       case other => sys.error(s"the round did not reach the last discard: $other")
     }
@@ -51,8 +54,8 @@ object DeadRoundSuite extends SimpleIOSuite {
 
     expect.eql(
       GameState(owingTheLastDiscard, player, Move.Discard(card)).map {
-        case GameState.Finished(_, outcome) => outcome
-        case _: GameState.InProgress        => Outcome.Knocked(player)
+        case GameState.Finished(_, _, outcome) => outcome
+        case _: GameState.InProgress           => Outcome.Knocked(player)
       },
       Right(Outcome.Dead)
     )
@@ -73,8 +76,8 @@ object DeadRoundSuite extends SimpleIOSuite {
     val (player, card) = owed
 
     expect(GameState(owingTheLastDiscard, player, Move.Knock(card)) match {
-      case Right(GameState.Finished(_, Outcome.Dead)) => false
-      case _                                          => true
+      case Right(GameState.Finished(_, _, Outcome.Dead)) => false
+      case _                                             => true
     })
   }
 }
