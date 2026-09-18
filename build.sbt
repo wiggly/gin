@@ -13,6 +13,18 @@ ThisBuild / tpolecatDefaultOptionsMode := DevMode
 // applies in CI, verbose and release modes, which are all derived from them.
 ThisBuild / tpolecatDevModeOptions += ScalacOptions.noIndent
 
+// Coverage is off until the `coverage` command turns it on, so a plain `sbt test` stays
+// uninstrumented. Main and HttpServer are the composition root and the Ember wiring: no unit test
+// drives them, so counting them would only depress the figure.
+// The patterns carry no `.scala`: the compiler strips the extension before matching, and the whole
+// path has to match, so a pattern ending in `.scala` silently excludes nothing.
+ThisBuild / coverageExcludedFiles := ".*/server/Main;.*/server/HttpServer"
+// Floors sit a few points under the measured aggregate (87.83% statement, 57.14% branch) so that
+// ordinary churn does not trip them. They bite on `coverageAggregate`, not on a single module.
+ThisBuild / coverageFailOnMinimum      := true
+ThisBuild / coverageMinimumStmtTotal   := 85
+ThisBuild / coverageMinimumBranchTotal := 50
+
 lazy val catsVersion       = "2.13.0"
 lazy val catsEffectVersion = "3.6.3"
 lazy val pureconfigVersion = "0.17.10"

@@ -102,3 +102,19 @@ Tests are [weaver](https://typelevel.org/weaver-test/) suites, property-based by
 - **Keep generators narrow.** weaver's checkers do not shrink: a counterexample is reported exactly
   as generated. The failure output does include a seed that reproduces it, e.g.
   `forall.withConfig(checkConfig.withInitialSeed(...))`.
+
+### Coverage
+
+```bash
+sbt clean coverage test coverageAggregate   # report in target/scala-3.9.0/scoverage-report
+sbt coverageOff                             # back to uninstrumented compilation
+```
+
+`coverageAggregate` reports both modules together, and that combined figure is what the build
+gates on: below 85% statement or 50% branch coverage the task fails. `Main.scala` and
+`HttpServer.scala` are excluded, because they are the composition root and the Ember wiring and no
+unit test drives them.
+
+Run `clean` when switching between an instrumented and a plain build. Coverage changes the
+compiler options, and leaving both kinds of class file in one `target` breaks incremental
+compilation.
