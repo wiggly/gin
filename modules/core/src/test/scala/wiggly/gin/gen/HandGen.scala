@@ -1,7 +1,7 @@
 package wiggly.gin.gen
 
 import org.scalacheck.Gen
-import wiggly.gin.core.domain.{Card, Deck, Meld}
+import wiggly.gin.core.domain.{Arrangement, Card, Deck, Hand, Meld}
 
 object HandGen {
 
@@ -11,6 +11,15 @@ object HandGen {
   val HandSize: Int = 10
 
   val hand: Gen[List[Card]] = CardGen.distinctCards(HandSize)
+
+  /** A defender's hand and the melds the knocker laid down, dealt from one deck so that no card
+    * is in both places, which is the only pairing a round can produce.
+    */
+  val defenceAndKnock: Gen[(Hand, List[Meld])] = CardGen.distinctCards(HandSize * 2).map { cards =>
+    val (defender, knocker) = cards.splitAt(HandSize)
+
+    (Hand.of(defender), Arrangement.best(knocker).melds)
+  }
 
   /** A hand built from melds chosen up front, paired with the deadwood that construction leaves.
     *

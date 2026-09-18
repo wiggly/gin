@@ -1,5 +1,6 @@
 package wiggly.gin.core.domain
 
+import cats.data.NonEmptyList
 import cats.syntax.all.*
 import cats.{Eq, Show}
 
@@ -28,7 +29,7 @@ object Arrangement {
     */
   def best(hand: List[Card]): Arrangement = {
     val cards = hand.sorted
-    val melds = select(cards, candidatesWithin(cards))
+    val melds = select(cards, candidatesWithin(cards))(_.cards)
 
     Arrangement(melds, cards.diff(melds.flatMap(_.cards.toList)))
   }
@@ -38,8 +39,11 @@ object Arrangement {
     * The order matters: it is what decides between two arrangements that leave the same deadwood,
     * and so what makes [[best]] reproducible rather than a matter of which meld happened to be
     * enumerated first.
+    *
+    * [[Defence]] runs the same search with these candidates and the layoffs beside them, which is
+    * why this and [[select]] are open to the rest of the domain.
     */
-  private def candidatesWithin(cards: List[Card]): List[Meld] =
+  private[domain] def candidatesWithin(cards: List[Card]): List[Meld] =
     (setsWithin(cards) ++ runsWithin(cards)).distinct.sorted
 
   /** Sets are enumerated as every *combination* of three or more cards of a rank, not only the
@@ -70,32 +74,40 @@ object Arrangement {
     }
 
   /** Works down the available cards in canonical order. The lowest card is either deadwood or part
-    * of one of the melds that can still be made from it, so each branch either commits a card to
-    * the deadwood or commits a whole meld, and the search ends when no cards are left.
+    * of one of the candidates that can still be taken with it, so each branch either commits a
+    * card to the deadwood or commits a whole candidate, and the search ends when no cards are
+    * left.
     *
-    * The best branch is the one melding the most value, which is the same thing as leaving the
-    * least. `maxBy` keeps the first of equal branches, so a tie goes to the earliest candidate in
-    * canonical order, and melding beats leaving a card loose.
+    * The best branch is the one that costs its holder the least, which is the same thing as
+    * zeroing the most. `maxBy` keeps the first of equal branches, so a tie goes to the earliest
+    * candidate in canonical order, and taking a candidate beats leaving a card loose.
+    *
+    * A candidate is any group of cards that can be zeroed together. For [[best]] that is a meld.
+    * [[Defence]] passes layoffs as well, so that the choice between melding a card and laying it
+    * off is made in one search rather than by a first pass that cannot see the second.
     */
-  private def select(available: List[Card], candidates: List[Meld]): List[Meld] =
+  private[domain] def select[A](available: List[Card], candidates: List[A])(
+      cardsOf: A => NonEmptyList[Card]
+  ): List[A] =
     available match {
       case Nil          => Nil
       case card :: rest => {
-        val usable = candidates.filter { meld =>
-          val cards = meld.cards.toList
+        val usable = candidates.filter { candidate =>
+          val cards = cardsOf(candidate).toList
 
           cards.contains_(card) && cards.forall(available.contains_)
         }
 
-        val melding = usable.map { meld =>
-          meld :: select(available.diff(meld.cards.toList), candidates)
+        val taking = usable.map { candidate =>
+          candidate :: select(available.diff(cardsOf(candidate).toList), candidates)(cardsOf)
         }
 
-        (melding :+ select(rest, candidates)).maxBy(meldedValue)
+        (taking :+ select(rest, candidates)(cardsOf)).maxBy(zeroedValue(cardsOf))
       }
     }
 
-  private def meldedValue(melds: List[Meld]): Int = melds.map(_.deadwoodValue).sum
+  private def zeroedValue[A](cardsOf: A => NonEmptyList[Card])(taken: List[A]): Int =
+    taken.flatMap(cardsOf(_).toList).map(_.deadwoodValue).sum
 
   given Eq[Arrangement] = Eq.fromUniversalEquals
 
