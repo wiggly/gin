@@ -25,6 +25,14 @@ ThisBuild / coverageFailOnMinimum      := true
 ThisBuild / coverageMinimumStmtTotal   := 85
 ThisBuild / coverageMinimumBranchTotal := 50
 
+// The whole coverage run as one command. `clean` is not optional: instrumented and plain class
+// files in one target break incremental compilation. `coverageOff` at the end leaves the session
+// uninstrumented so that a later `test` is not silently slowed down.
+addCommandAlias(
+  "coverageAll",
+  "clean; coverage; test; coverageAggregate; coverageOff"
+)
+
 lazy val catsVersion       = "2.13.0"
 lazy val catsEffectVersion = "3.6.3"
 lazy val pureconfigVersion = "0.17.10"

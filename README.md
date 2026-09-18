@@ -106,15 +106,20 @@ Tests are [weaver](https://typelevel.org/weaver-test/) suites, property-based by
 ### Coverage
 
 ```bash
-sbt clean coverage test coverageAggregate   # report in target/scala-3.9.0/scoverage-report
-sbt coverageOff                             # back to uninstrumented compilation
+sbt coverageAll     # report in target/scala-3.9.0/scoverage-report/index.html
 ```
+
+`coverageAll` is an alias in `build.sbt` for the five steps a report needs:
+
+```
+clean; coverage; test; coverageAggregate; coverageOff
+```
+
+`clean` is there because instrumented and plain class files in one `target` break incremental
+compilation, so any switch between the two kinds of build needs it. `coverageOff` puts the session
+back to uninstrumented compilation on the way out.
 
 `coverageAggregate` reports both modules together, and that combined figure is what the build
 gates on: below 85% statement or 50% branch coverage the task fails. `Main.scala` and
 `HttpServer.scala` are excluded, because they are the composition root and the Ember wiring and no
 unit test drives them.
-
-Run `clean` when switching between an instrumented and a plain build. Coverage changes the
-compiler options, and leaving both kinds of class file in one `target` breaks incremental
-compilation.

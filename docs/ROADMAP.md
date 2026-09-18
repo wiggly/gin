@@ -14,7 +14,7 @@ by default; suites are objects named `*Suite`. Formatting is scalafmt, pinned ag
 brace-removal rewrites. Conventions are in the README; this is not worth re-opening at step 1.
 
 Coverage is sbt-scoverage, run on demand rather than as part of the gate, with a floor that fails
-`coverageAggregate` if the combined figure drops. The README has the command.
+`coverageAggregate` if the combined figure drops. `sbt coverageAll` runs it; see the README.
 
 Still absent by choice: CI. The build gates on `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll test`
 whenever someone decides to wire it up.
