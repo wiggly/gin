@@ -7,6 +7,9 @@ Status: the `server` module exists and serves `/health`, with `/api/v1` reserved
 backed by `HttpRoutes.empty`. `core` holds the card model, melds and the deadwood search: steps 1
 and 2 are done, and [a working plan](PLAN-CARDS-AND-MELDS.md) records how.
 
+The rules of the round are written down once, in [the game flow document](GAME-FLOW.md). It is the
+permanent reference for steps 3 and 4, and the plans below point at it rather than restating it.
+
 ## Settled
 
 Testing is [weaver](https://typelevel.org/weaver-test/) 0.13 with `weaver-scalacheck`, property-based
@@ -42,12 +45,20 @@ boundary (≤ 10).
 ## 3. The state machine (`core`)
 
 In `core/domain`, alongside the cards: `GameState` (stock, discard pile, both hands, whose turn,
-phase of turn) and `Move` — draw from stock, draw from discard, discard, knock, gin, lay off —
-behind a single pure total function:
+phase of turn) and `Move` — draw from stock, draw from discard, pass, discard, knock — behind a
+single pure total function:
 
 ```
 (state, player, move) => Either[GameError, GameState]
 ```
+
+[The game flow document](GAME-FLOW.md) holds the states, the transitions, the guards and the error
+each guard returns. [A working plan](PLAN-STATE-MACHINE.md) records the files and the order they
+get written in.
+
+Two moves that an earlier draft of this list named are gone. Gin is a knock worth nothing rather
+than a move of its own. A layoff is computed with the score in step 4 rather than played out,
+because a layoff only ever cuts deadwood and so no player would decline one.
 
 Shuffling enters as a port rather than a call to `Random`: `deal` takes an already-shuffled deck, so
 tests deal a known deck and the effect stays at the edge of the application.
