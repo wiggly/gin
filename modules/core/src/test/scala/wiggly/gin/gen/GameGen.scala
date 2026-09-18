@@ -154,6 +154,15 @@ object GameGen {
     KnockingDeal(deck, spare)
   }
 
+  /** Any move, legal here or not, which is what a codec has to carry. */
+  val move: Gen[Move] = Gen.oneOf(
+    Gen.const(Move.DrawStock),
+    Gen.const(Move.DrawDiscard),
+    Gen.const(Move.Pass),
+    CardGen.card.map(Move.Discard.apply),
+    CardGen.card.map(Move.Knock.apply)
+  )
+
   val gameId: Gen[GameId] = Gen.uuid.map(id => GameId(id.toString))
 
   val token: Gen[Token] = Gen.uuid.map(id => Token(id.toString))

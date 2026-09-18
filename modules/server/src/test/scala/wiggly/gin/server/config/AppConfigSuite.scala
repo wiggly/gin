@@ -34,7 +34,8 @@ object AppConfigSuite extends SimpleIOSuite with Checkers {
     loaded() { config =>
       expect.eql(config.http.host, ipv4"0.0.0.0") and
         expect.eql(config.http.port, port"8080") and
-        expect.eql(config.http.shutdownTimeout, 30.seconds)
+        expect.eql(config.http.shutdownTimeout, 30.seconds) and
+        expect.eql(config.http.eventHeartbeat, 15.seconds)
     }
   }
 
@@ -42,11 +43,13 @@ object AppConfigSuite extends SimpleIOSuite with Checkers {
     loaded(
       "GIN_HTTP_HOST"             -> "127.0.0.1",
       "GIN_HTTP_PORT"             -> "9000",
-      "GIN_HTTP_SHUTDOWN_TIMEOUT" -> "5 seconds"
+      "GIN_HTTP_SHUTDOWN_TIMEOUT" -> "5 seconds",
+      "GIN_HTTP_EVENT_HEARTBEAT"  -> "2 seconds"
     ) { config =>
       expect.eql(config.http.host, ipv4"127.0.0.1") and
         expect.eql(config.http.port, port"9000") and
-        expect.eql(config.http.shutdownTimeout, 5.seconds)
+        expect.eql(config.http.shutdownTimeout, 5.seconds) and
+        expect.eql(config.http.eventHeartbeat, 2.seconds)
     }
   }
 

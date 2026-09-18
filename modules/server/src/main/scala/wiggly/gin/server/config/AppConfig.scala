@@ -13,9 +13,17 @@ import scala.jdk.CollectionConverters.*
   *
   * @param shutdownTimeout
   *   how long in-flight requests are given to finish once a shutdown has been requested.
+  * @param eventHeartbeat
+  *   how often an idle event stream sends a comment. A connection that says nothing for long
+  *   enough is dropped by whatever sits between the server and the player, and a dropped stream
+  *   looks to them like a game that stopped answering.
   */
-final case class HttpConfig(host: Host, port: Port, shutdownTimeout: FiniteDuration)
-    derives ConfigReader
+final case class HttpConfig(
+    host: Host,
+    port: Port,
+    shutdownTimeout: FiniteDuration,
+    eventHeartbeat: FiniteDuration
+) derives ConfigReader
 
 final case class AppConfig(http: HttpConfig) derives ConfigReader
 
