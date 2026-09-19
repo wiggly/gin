@@ -59,6 +59,31 @@ comment only where the code cannot carry the information itself — a rule of th
 not encode, a deliberate deviation, or a subtlety that would otherwise read as a mistake. Say why,
 never what. A comment that restates the line below it is noise, and it drifts out of date.
 
+# JSON
+
+Derive a codec. Do not write one by hand for a case class. circe derives products in Scala 3 from
+`circe-core` alone, with `Encoder.AsObject.derived` and `Decoder.derived`, so `circe-generic` is
+not needed and neither is a list of field names that has to be kept in step with the type. A field
+added to a case class then appears in the payload on its own, which is the point: a hand-written
+encoder that silently omits a new field is a bug nobody sees.
+
+Write one by hand only where the derived shape is not the shape the API should have, and say which
+in a comment. Three cases come up:
+
+- A plain enum derives to `{"Ace":{}}` where a client wants `"ace"`.
+- A sum derives to `{"UpcardOffered":{...}}` where a client wants the fields with a tag beside
+  them, as in `{"phase":"upcard-offered","player":"one"}`.
+- A single-field wrapper derives to `{"value":"..."}` where a client wants the string it wraps.
+
+Where only part of the shape is wrong, derive the part that is right. Derive the case class and
+prepend the tag; derive the case class and add the computed field that is not one of its
+constructor parameters. `Codecs.scala` in the http adapter does both.
+
+Codecs live in the adapter that speaks the protocol, never in `core`. That keeps the wire format a
+choice rather than a consequence of how the domain happens to be spelled, it keeps `core` free of
+a JSON dependency, and it means a type with no encoder cannot reach a client at all. `Game` and
+`GameState` have none on purpose: the only shape a game may be seen in is a `PlayerView`.
+
 # Formatting
 
 Formatting is scalafmt; run `sbt scalafmtAll` (or `scalafmtCheckAll` to verify without writing).

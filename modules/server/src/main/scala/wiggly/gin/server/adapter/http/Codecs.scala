@@ -1,15 +1,18 @@
 package wiggly.gin.server.adapter.http
 
 import io.circe.syntax.*
-import io.circe.{Decoder, DecodingFailure, Encoder, Json}
+import io.circe.{Decoder, DecodingFailure, Encoder, Json, JsonObject}
 import wiggly.gin.core.domain.*
 import wiggly.gin.core.port.Credentials
 
 /** How the game looks on the wire.
   *
-  * Written out rather than derived, so that the names a client sees are chosen and do not move
-  * when a field is renamed in Scala. Everything here is one way except a move, because a move is
-  * the only thing a client sends.
+  * Every case class here is derived, so a field added to one appears in the payload without
+  * anybody editing this file. What is written out by hand is the handful of places where the
+  * derived shape is not the shape a client should be given: a plain enum derives to `{"Ace":{}}`
+  * rather than `"ace"`, a sum derives to `{"UpcardOffered":{…}}` rather than an object with a tag
+  * beside its fields, and a single-field wrapper derives to `{"value":"…"}` rather than the string
+  * it wraps.
   *
   * Only [[PlayerView]] and [[Credentials]] have encoders that leave the building. A `Game` and a
   * `GameState` deliberately have none: the one shape a game may be seen in is a view, and the
@@ -36,6 +39,15 @@ object Codecs {
       values.find(value => dashed(value.toString) == name).toRight(s"unknown $what: $name")
     }
 
+  /** An object with the name of its case in front of its fields, which is how every sum in this
+    * file is told apart. Prepended rather than added, so a client reads the tag first.
+    */
+  private def tagged(key: String, value: String, fields: JsonObject): Json =
+    Json.fromJsonObject((key -> Json.fromString(value)) +: fields)
+
+  private def tagged(key: String, value: String, fields: (String, Json)*): Json =
+    Json.obj(((key -> Json.fromString(value)) +: fields)*)
+
   given Encoder[Rank] = named
   given Decoder[Rank] = parsed(Rank.values, "rank")
 
@@ -44,16 +56,16 @@ object Codecs {
 
   given Encoder[Player] = named
 
-  given Encoder[Card] = Encoder.instance { card =>
-    Json.obj("rank" -> card.rank.asJson, "suit" -> card.suit.asJson)
-  }
+  /** The wrappers, as the strings they wrap. */
+  given Encoder[GameId] = Encoder.encodeString.contramap(_.value)
+  given Encoder[Token]  = Encoder.encodeString.contramap(_.value)
 
-  given Decoder[Card] = Decoder.instance { cursor =>
-    for {
-      rank <- cursor.get[Rank]("rank")
-      suit <- cursor.get[Suit]("suit")
-    } yield Card(rank, suit)
-  }
+  given Encoder[Card] = Encoder.AsObject.derived
+  given Decoder[Card] = Decoder.derived
+
+  given Encoder[Tally]       = Encoder.AsObject.derived
+  given Encoder[MatchResult] = Encoder.AsObject.derived
+  given Encoder[Credentials] = Encoder.AsObject.derived
 
   given Decoder[Move] = Decoder.instance { cursor =>
     cursor.get[String]("move").flatMap {
@@ -80,24 +92,23 @@ object Codecs {
       case _: Meld.Run => "run"
     }
 
-    Json.obj("kind" -> Json.fromString(kind), "cards" -> meld.cards.toList.asJson)
+    tagged("kind", kind, "cards" -> meld.cards.toList.asJson)
   }
 
-  given Encoder[Arrangement] = Encoder.instance { arrangement =>
-    Json.obj(
-      "melds"         -> arrangement.melds.asJson,
-      "deadwood"      -> arrangement.deadwood.asJson,
-      "deadwoodValue" -> arrangement.deadwoodValue.asJson
-    )
+  /** Derived, and then told what the cards come to. The sum is not a field of the type, so it is
+    * the one thing derivation cannot know about, and it is worth sending: a client should not have
+    * to carry its own copy of what a card is worth to know whether it can knock.
+    */
+  private val arrangement: Encoder.AsObject[Arrangement] = Encoder.AsObject.derived
+
+  given Encoder[Arrangement] = Encoder.AsObject.instance { value =>
+    arrangement.encodeObject(value).add("deadwoodValue", value.deadwoodValue.asJson)
   }
 
-  given Encoder[Defence] = Encoder.instance { defence =>
-    Json.obj(
-      "melds"         -> defence.melds.asJson,
-      "layoffs"       -> defence.layoffs.asJson,
-      "deadwood"      -> defence.deadwood.asJson,
-      "deadwoodValue" -> defence.deadwoodValue.asJson
-    )
+  private val defence: Encoder.AsObject[Defence] = Encoder.AsObject.derived
+
+  given Encoder[Defence] = Encoder.AsObject.instance { value =>
+    defence.encodeObject(value).add("deadwoodValue", value.deadwoodValue.asJson)
   }
 
   given Encoder[Phase] = Encoder.instance {
@@ -111,8 +122,10 @@ object Codecs {
       tagged("phase", "awaiting-discard", "player" -> player.asJson, "taken" -> taken.asJson)
   }
 
-  given Encoder[Tally] = Encoder.instance { tally =>
-    Json.obj("one" -> tally.one.asJson, "two" -> tally.two.asJson)
+  /** A round that nobody knocked was won by nobody, which is what the null says. */
+  given Encoder[Outcome] = Encoder.AsObject.instance {
+    case Outcome.Knocked(player) => JsonObject("knockedBy" -> player.asJson)
+    case Outcome.Dead            => JsonObject("knockedBy" -> Json.Null)
   }
 
   given Encoder[RoundScore] = Encoder.instance {
@@ -122,63 +135,20 @@ object Codecs {
     case RoundScore.Undercut(winner, points) => scored("undercut", winner, points)
   }
 
-  given Encoder[RoundResult] = Encoder.instance { result =>
-    val knockedBy = result.outcome match {
-      case Outcome.Knocked(player) => player.asJson
-      case Outcome.Dead            => Json.Null
-    }
+  given Encoder[RoundResult] = Encoder.AsObject.derived
 
-    Json.obj(
-      "knockedBy" -> knockedBy,
-      "knocker"   -> result.knocker.asJson,
-      "defender"  -> result.defender.asJson,
-      "score"     -> result.score.asJson
-    )
-  }
+  private val awaitingOpponent: Encoder.AsObject[PlayerView.AwaitingOpponent] =
+    Encoder.AsObject.derived
 
-  given Encoder[MatchResult] = Encoder.instance { result =>
-    Json.obj("winner" -> result.winner.asJson, "totals" -> result.totals.asJson)
-  }
+  private val inPlay: Encoder.AsObject[PlayerView.InPlay] = Encoder.AsObject.derived
+
+  private val over: Encoder.AsObject[PlayerView.Over] = Encoder.AsObject.derived
 
   given Encoder[PlayerView] = Encoder.instance {
-    case PlayerView.AwaitingOpponent(id, you) =>
-      tagged("state", "awaiting-opponent", "id" -> id.value.asJson, "you" -> you.asJson)
-
-    case view: PlayerView.InPlay =>
-      tagged(
-        "state",
-        "in-play",
-        "id"           -> view.id.value.asJson,
-        "you"          -> view.you.asJson,
-        "arrangement"  -> view.arrangement.asJson,
-        "dealer"       -> view.dealer.asJson,
-        "onTurn"       -> view.onTurn.asJson,
-        "phase"        -> view.phase.asJson,
-        "upcard"       -> view.upcard.asJson,
-        "stockSize"    -> view.stockSize.asJson,
-        "discardSize"  -> view.discardSize.asJson,
-        "opponentSize" -> view.opponentSize.asJson,
-        "totals"       -> view.totals.asJson,
-        "previous"     -> view.previous.asJson
-      )
-
-    case PlayerView.Over(id, you, result, previous) =>
-      tagged(
-        "state",
-        "over",
-        "id"       -> id.value.asJson,
-        "you"      -> you.asJson,
-        "result"   -> result.asJson,
-        "previous" -> previous.asJson
-      )
-  }
-
-  given Encoder[Credentials] = Encoder.instance { credentials =>
-    Json.obj(
-      "id"    -> credentials.id.value.asJson,
-      "you"   -> credentials.you.asJson,
-      "token" -> credentials.token.value.asJson
-    )
+    case view: PlayerView.AwaitingOpponent =>
+      tagged("state", "awaiting-opponent", awaitingOpponent.encodeObject(view))
+    case view: PlayerView.InPlay => tagged("state", "in-play", inPlay.encodeObject(view))
+    case view: PlayerView.Over   => tagged("state", "over", over.encodeObject(view))
   }
 
   /** The name of the rule or the refusal, as a client reads it in an error body. */
@@ -191,7 +161,4 @@ object Codecs {
 
   private def scored(result: String, winner: Player, points: Int): Json =
     tagged("result", result, "winner" -> winner.asJson, "points" -> points.asJson)
-
-  private def tagged(key: String, value: String, fields: (String, Json)*): Json =
-    Json.obj(((key -> Json.fromString(value)) +: fields)*)
 }

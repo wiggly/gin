@@ -23,7 +23,7 @@ and every piece of technology is named in exactly one adapter.
 | `GameRepository.update` | Takes a pure function | That is what a `Ref` can apply atomically. An effectful modify needs a lock held across an effect, or a second write that other requests can see between. |
 | The deck for the next deal | Shuffled before the update, whether or not it is needed | The consequence of the line above. A wasted shuffle of 52 cards on a move that does not end a round is the cheapest of the three options. |
 | `PlayerView` | An enum of three cases, never a `GameState` | The in-play case has no field that could hold the other hand or the order of the stock, so a leak is a new field rather than a forgotten guard. |
-| The codecs | Written by hand, in the http adapter | The wire format is chosen rather than derived from Scala names, and `server` needs no new dependency. |
+| The codecs | Derived for every case class, written out only for the sums and the enums, all in the http adapter | A derived product is the payload a client should get, and it stays right when a field is added. A derived enum is `{"Ace":{}}` and a derived sum is `{"UpcardOffered":{…}}`, neither of which is. See the JSON section of `CLAUDE.md`. |
 | The redaction test | Over the encoded JSON, in `server` | A field added later appears in the payload whether or not anybody remembered a traversal. |
 
 Two dependencies change. `core` gains `fs2-core`, because the event port returns a `Stream`.
@@ -291,6 +291,11 @@ A move is a tagged object: `{"move":"draw-stock"}`, or `{"move":"knock","card":{
 "suit":"spades"}}`. A fault becomes a status with the existing `{"error":…}` body, which every
 other response in this server already uses.
 
+The codecs derive every case class and write out only what derivation gets wrong for an API, which
+is the enums, the sums and the wrappers around a single string. The round that just ended nests
+its outcome, as `{"outcome":{"knockedBy":"one"},…}`, because that is what deriving `RoundResult`
+gives once `Outcome` has a codec of its own.
+
 | Fault | Status |
 | --- | --- |
 | `NoSuchGame` | 404 |
@@ -333,6 +338,7 @@ Everything above is what landed, with these exceptions, each noted where it belo
 | A topic per game, subscribed before the current state is read | A signal per game | A signal holds the current value, so the ordering problem does not arise, and a slow watcher costs nothing. |
 | Five faults and five statuses | Seven answers | A request with no token is 401 and a body that is not a move is 400, neither of which reaches the service. |
 | The redaction check covers the whole payload | It sets `previous` aside for two of its three claims | The previous round is public and its cards have been redealt, so they appear in the stock of the round in play. |
+| Every codec written by hand | Only the sums, the enums and the wrappers | Derivation gives the right payload for a product and cannot forget a field somebody adds later. The one adjustment to a derived product is a computed value that is not a constructor parameter, such as `deadwoodValue`. |
 
 ## 5. The documents
 

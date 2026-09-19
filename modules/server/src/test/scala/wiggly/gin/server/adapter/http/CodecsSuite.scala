@@ -77,6 +77,31 @@ object CodecsSuite extends SimpleIOSuite with Checkers {
     }
   }
 
+  pureTest("the round that just ended carries who knocked, both hands and the points") {
+    val gin  = Rank.values.toList.take(GameState.HandSize).map(Card(_, Spades))
+    val held = List(
+      Card(King, Hearts),
+      Card(Queen, Diamonds),
+      Card(Jack, Hearts),
+      Card(Ten, Diamonds),
+      Card(Nine, Hearts),
+      Card(Eight, Diamonds),
+      Card(Seven, Hearts),
+      Card(Six, Diamonds),
+      Card(Five, Hearts),
+      Card(Four, Diamonds)
+    )
+
+    val seats  = Seats(Player.Two)
+    val result = RoundResult.of(GameGen.knockKeeping(seats, gin, held)).asJson
+
+    expect.eql(result.hcursor.downField("outcome").get[String]("knockedBy"), Right("one")) and
+      expect.eql(result.hcursor.downField("score").get[String]("result"), Right("gin")) and
+      expect.eql(result.hcursor.downField("score").get[Int]("points"), Right(104)) and
+      expect.eql(result.hcursor.downField("knocker").get[Int]("deadwoodValue"), Right(0)) and
+      expect.eql(result.hcursor.downField("defender").get[Int]("deadwoodValue"), Right(79))
+  }
+
   pureTest("a refusal is named as a client reads it, capitals and all") {
     expect.eql(Codecs.reason(GameFault.NotAPlayer), "not-a-player") and
       expect.eql(Codecs.reason(GameFault.NoSuchGame), "no-such-game") and
