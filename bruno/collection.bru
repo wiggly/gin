@@ -1,0 +1,22 @@
+docs {
+  Drive the wiggly-gin API by hand, one click at a time.
+  
+  Start the server, then select the `local` environment. Open Seats and send Create
+  game, then Join game. Those two requests record the game id and both seat tokens as
+  runtime variables, so no later request needs anything typed into it.
+  
+  A runtime variable lives in Bruno for this session only. It is never written to disk,
+  so playing a game leaves the files in this folder unchanged, and no seat token is ever
+  committed.
+  
+  Host and Guest hold the same seven requests, one folder for each seat. Send Look in
+  either folder to read that player's own view of the game. The view names the phase, so
+  it tells you which move that player can make next.
+  
+  Discard and Knock each need a card you hold. Read your hand in Look, then set the
+  `rank` and `suit` variables in the `local` environment. Both moves read them.
+  
+  Refusals holds one request for each way the server says no.
+  
+  The shapes are described in `docs/openapi.yaml`, which is the authority on all of them.
+}

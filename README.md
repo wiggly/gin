@@ -176,6 +176,29 @@ curl -s -X POST -H "Authorization: Bearer $HOST" -H 'Content-Type: application/j
 A move is a tagged object: `{"move":"draw-stock"}`, `{"move":"draw-discard"}`, `{"move":"pass"}`,
 or `{"move":"discard"|"knock","card":{"rank":"ace","suit":"spades"}}`.
 
+### Driving the API with Bruno
+
+[`bruno/`](bruno) holds a [Bruno](https://www.usebruno.com/) collection that plays a whole game by
+clicking. In Bruno, choose Open Collection and select the `bruno` folder. Then select the `local`
+environment, which points at `http://localhost:8080`.
+
+Send Create game and then Join game, both in the Seats folder. Those two requests record the game
+id and both seat tokens as runtime variables, so no later request needs a token typed into it. A
+runtime variable lives in Bruno for the session only. Playing a game therefore changes no file in
+the collection, and no seat token is ever committed.
+
+Host and Guest hold the same seven requests, one folder for each seat. Send Look in either folder
+to read that player's own view of the game. Discard and Knock each need a card you hold, so read
+your hand in Look and then set `rank` and `suit` in the `local` environment. Refusals holds one
+request for each status in the table above.
+
+Bruno collects a `text/event-stream` body whole, and does not show it as it arrives. The Watch
+events request proves that the token opens the stream. It does not show the game moving, so use
+the `curl -N` line above to watch one.
+
+The collection is hand written, like `docs/openapi.yaml`, and CI does not run it. The requests
+carry no assertions, so a run would prove only that the server answered.
+
 ## Tests
 
 ```bash

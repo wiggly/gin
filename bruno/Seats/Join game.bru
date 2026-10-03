@@ -1,0 +1,28 @@
+meta {
+  name: Join game
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}/join
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    bru.setVar("guestToken", res.body.token);
+  }
+}
+
+docs {
+  Take the second seat. You are player two, and the first round is dealt.
+  
+  This records `guestToken`. The upcard is then offered to whoever did not deal, which
+  is the player who created the game.
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Draw stock
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}/moves
+  body: json
+  auth: bearer
+}
+
+headers {
+  Accept: application/json
+}
+
+auth:bearer {
+  token: {{guestToken}}
+}
+
+body:json {
+  {
+    "move": "draw-stock"
+  }
+}
+
+docs {
+  Take the top card of the face-down stock. You then hold eleven cards and owe a discard.
+  
+  The response is your own view of what the game became.
+}

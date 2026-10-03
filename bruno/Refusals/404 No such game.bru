@@ -1,0 +1,23 @@
+meta {
+  name: 404 No such game
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/games/no-such-game
+  body: none
+  auth: bearer
+}
+
+headers {
+  Accept: application/json
+}
+
+auth:bearer {
+  token: {{hostToken}}
+}
+
+docs {
+  A real token at a game id that does not exist. The server answers `404` `no-such-game`.
+}

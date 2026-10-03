@@ -1,0 +1,20 @@
+meta {
+  name: 409 Already full
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}/join
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  A third player joining a game that already has two. The server answers `409`
+  `already-full`.
+}

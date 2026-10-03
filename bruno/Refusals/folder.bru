@@ -1,0 +1,12 @@
+meta {
+  name: Refusals
+  seq: 5
+}
+
+docs {
+  One request for each way the server says no.
+  
+  Send Create game and Join game first, because every request here needs a real game to be
+  refused at. Every refusal carries a JSON body holding one field, `error`, which names the
+  refusal and nothing more.
+}

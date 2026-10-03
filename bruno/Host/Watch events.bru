@@ -1,0 +1,33 @@
+meta {
+  name: Watch events
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}/events
+  body: none
+  auth: bearer
+}
+
+headers {
+  Accept: text/event-stream
+}
+
+auth:bearer {
+  token: {{hostToken}}
+}
+
+docs {
+  Hold a stream open and receive every state the game reaches.
+  
+  Bruno collects the whole body before it shows anything, so this request proves that the
+  token opens the stream, but it does not show views as they arrive. To watch a game, use
+  curl in a second terminal instead:
+  
+      curl -N "localhost:8080/api/v1/games/<id>/events?token=<token>"
+  
+  The stream also accepts the token in the query string, because a browser EventSource
+  cannot set a header. A query string reaches logs and proxy history, so the header is the
+  better of the two places wherever a client can use it.
+}

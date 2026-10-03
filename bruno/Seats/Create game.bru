@@ -1,0 +1,32 @@
+meta {
+  name: Create game
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/games
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("gameId", res.body.id);
+    bru.setVar("hostToken", res.body.token);
+    // The guest seat at the previous game belongs to no seat at this one, and a stale
+    // token reads as a confusing 403 rather than an empty field.
+    bru.setVar("guestToken", "");
+  }
+}
+
+docs {
+  Create a game and take the first seat. You are player one, and the game waits for a
+  second player.
+  
+  This records `gameId` and `hostToken`, and clears `guestToken`.
+}

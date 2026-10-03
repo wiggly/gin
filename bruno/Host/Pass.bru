@@ -1,0 +1,33 @@
+meta {
+  name: Pass
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}/moves
+  body: json
+  auth: bearer
+}
+
+headers {
+  Accept: application/json
+}
+
+auth:bearer {
+  token: {{hostToken}}
+}
+
+body:json {
+  {
+    "move": "pass"
+  }
+}
+
+docs {
+  Refuse the upcard. Only the opening of a round offers one, so this move is legal only
+  while the phase is `upcard-offered`.
+  
+  If both players refuse it, the player who did not deal draws from the stock, and only
+  from the stock.
+}

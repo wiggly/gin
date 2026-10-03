@@ -1,0 +1,24 @@
+meta {
+  name: 403 Not a player
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}
+  body: none
+  auth: bearer
+}
+
+headers {
+  Accept: application/json
+}
+
+auth:bearer {
+  token: not-a-real-token
+}
+
+docs {
+  A token that belongs to neither seat at this game. The server answers `403`
+  `not-a-player`.
+}

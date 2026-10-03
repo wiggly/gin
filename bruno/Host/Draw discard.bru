@@ -1,0 +1,32 @@
+meta {
+  name: Draw discard
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}/moves
+  body: json
+  auth: bearer
+}
+
+headers {
+  Accept: application/json
+}
+
+auth:bearer {
+  token: {{hostToken}}
+}
+
+body:json {
+  {
+    "move": "draw-discard"
+  }
+}
+
+docs {
+  Take the upcard, which is the top card of the face-up discard pile. You then hold eleven
+  cards and owe a discard.
+  
+  You cannot put this card straight back. The view names it as `phase.taken`.
+}

@@ -1,0 +1,32 @@
+meta {
+  name: 400 Malformed move
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}/moves
+  body: json
+  auth: bearer
+}
+
+headers {
+  Accept: application/json
+}
+
+auth:bearer {
+  token: {{hostToken}}
+}
+
+body:json {
+  {
+    "move": "shuffle"
+  }
+}
+
+docs {
+  A body that is not a move. The server answers `400` `malformed-move`.
+  
+  A move the server understands but the rules refuse is different: that is a `422`, and the
+  body names the rule. Send Knock from Host with a full hand to see one.
+}

@@ -1,0 +1,36 @@
+meta {
+  name: Discard
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}/moves
+  body: json
+  auth: bearer
+}
+
+headers {
+  Accept: application/json
+}
+
+auth:bearer {
+  token: {{guestToken}}
+}
+
+body:json {
+  {
+    "move": "discard",
+    "card": {
+      "rank": "{{rank}}",
+      "suit": "{{suit}}"
+    }
+  }
+}
+
+docs {
+  Put a card on the discard pile and end your turn.
+  
+  Set `rank` and `suit` in the `local` environment to a card you hold. A card you do not
+  hold is refused with `card-not-held`.
+}

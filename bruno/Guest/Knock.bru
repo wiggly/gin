@@ -1,0 +1,39 @@
+meta {
+  name: Knock
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}/moves
+  body: json
+  auth: bearer
+}
+
+headers {
+  Accept: application/json
+}
+
+auth:bearer {
+  token: {{guestToken}}
+}
+
+body:json {
+  {
+    "move": "knock",
+    "card": {
+      "rank": "{{rank}}",
+      "suit": "{{suit}}"
+    }
+  }
+}
+
+docs {
+  Discard this card and end the round.
+  
+  Set `rank` and `suit` in the `local` environment, as for Discard. The server refuses the
+  knock with `cannot-knock` if the ten cards left are worth more than ten in deadwood, so
+  read `arrangement.deadwoodValue` in Look first.
+  
+  The response holds the finished round as `previous`, laid out with both hands.
+}

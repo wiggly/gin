@@ -1,0 +1,22 @@
+meta {
+  name: 401 No token
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  A request carrying no token at all.
+  
+  The server answers `401` with `WWW-Authenticate: Bearer realm="gin"`, before it looks the
+  game up. A token is the whole of a player's claim to a seat.
+}

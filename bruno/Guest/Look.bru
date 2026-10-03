@@ -1,0 +1,30 @@
+meta {
+  name: Look
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/games/{{gameId}}
+  body: none
+  auth: bearer
+}
+
+headers {
+  Accept: application/json
+}
+
+auth:bearer {
+  token: {{guestToken}}
+}
+
+docs {
+  Read player two's own view of the game.
+  
+  The view holds your hand, already split into the melds it can make and the cards left
+  over, and it holds the opponent as a card count. It never holds the opponent's hand or
+  the order of the stock.
+  
+  Read `phase` to learn what the game waits for, and `arrangement.deadwoodValue` to learn
+  whether you can knock. A player can knock at ten or under.
+}
