@@ -144,6 +144,11 @@ Keep them there rather than duplicating them here.
 
 The application should be designed as a 12-factor app to be built as a container.
 
+`sbt server/Docker/publishLocal` builds the image, through sbt-native-packager. Nothing about the
+running process is decided at build time: every setting is read from the environment, so one image
+serves every environment, and a new setting means a line in `application.conf` rather than a new
+image. The README has the detail.
+
 # Build
 
 sbt 1.13.0 on JDK 25, Scala 3.9.0.
@@ -163,12 +168,15 @@ Default mode is `DevMode` (set in `build.sbt`), so warnings do not fail local bu
 `SBT_TPOLECAT_CI=1` adds `-Werror`. Switch per-session with `sbt tpolecatCiMode` / `tpolecatDevMode`
 / `tpolecatVerboseMode`.
 
-There is no CI pipeline yet, by choice. Until there is one, run the gate by hand before handing work
-over:
+Run the gate before handing work over:
 
 ```bash
 SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test
 ```
+
+`.github/workflows/ci.yml` runs that same line on pushes to `main` and on every pull request, and
+then `coverageAll`, the image build and a start of the image. Running it by hand first is still
+worth it: it is the same answer, minutes sooner.
 
 To silence a noisy warning, exclude it rather than weakening the mode, e.g.
 `Test / tpolecatExcludeOptions += ScalacOptions.warnNonUnitStatement`.

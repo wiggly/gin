@@ -3,12 +3,14 @@
 Where the work went, and why in this order. Steps 1 to 4 are pure code in `core` with no `IO`;
 step 5 is where the `server` adapter finally had something to expose.
 
-Status: steps 1 to 5 are done. `core` holds the card model, the melds and the deadwood search, the
+Status: steps 1 to 6 are done. `core` holds the card model, the melds and the deadwood search, the
 round as a state machine, the scoring that adds rounds up into a match, and the ports and service
 that drive all of it. `server` serves a whole game over HTTP, with a stream a player can watch.
-Four working plans record how, one per step: [cards and melds](PLAN-CARDS-AND-MELDS.md), [the state
-machine](PLAN-STATE-MACHINE.md), [scoring](PLAN-SCORING.md) and [the vertical
-slice](PLAN-VERTICAL-SLICE.md).
+It is built as a container and every change is checked by a pipeline rather than by somebody
+remembering to. Five working plans record how, one per step: [cards and
+melds](PLAN-CARDS-AND-MELDS.md), [the state machine](PLAN-STATE-MACHINE.md),
+[scoring](PLAN-SCORING.md), [the vertical slice](PLAN-VERTICAL-SLICE.md) and [the container and
+CI](PLAN-CONTAINER-AND-CI.md).
 
 The rules of the round and of the match are written down once, in [the game flow
 document](GAME-FLOW.md). It is the permanent reference, and the plans point at it rather than
@@ -23,8 +25,9 @@ brace-removal rewrites. Conventions are in the README; this is not worth re-open
 Coverage is sbt-scoverage, run on demand rather than as part of the gate, with a floor that fails
 `coverageAggregate` if the combined figure drops. `sbt coverageAll` runs it; see the README.
 
-Still absent by choice: CI. The build gates on `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll test`
-whenever someone decides to wire it up.
+CI is `.github/workflows/ci.yml`, which runs the gate, the coverage floors, the image build and a
+start of that image, on pushes to `main` and on every pull request. The gate step is the same line
+`CLAUDE.md` asks a person to run, so the file and the pipeline cannot disagree about what it is.
 
 ## 1. Cards (`core`) — done
 
@@ -104,6 +107,20 @@ nor `GameState` has an encoder at all, so the other shapes cannot reach a client
 check runs over the encoded JSON rather than the Scala value, so a field added later is covered
 whether or not anybody remembers the suite.
 
+## 6. The container and the build that checks it — done
+
+The 12-factor goal stated in `CLAUDE.md`, and the pipeline the same file used to say was absent by
+choice. `sbt server/Docker/publishLocal` builds the image through sbt-native-packager, on
+`eclipse-temurin:25-jre`, running as uid 1001, exposing the port the configuration already
+defaults to, with the heap sized from the container's limit rather than from the host's memory.
+Nothing about the running process is decided at build time, so one image serves every environment.
+
+The pipeline runs the gate, then the coverage floors, then builds the image and starts it. The
+last of those is the one worth having: it is what stops the packaging producing something that
+builds and cannot run. Nothing is published to a registry, which leaves no credentials to hold and
+no tagging scheme to invent before anybody needs one. [A working
+plan](PLAN-CONTAINER-AND-CI.md) records the decisions and what was checked.
+
 ## Decisions that were open
 
 Both were settled at the start of step 5, before the routes hardened.
@@ -128,4 +145,5 @@ it claims to be.
 - A WebSocket adapter over `GameEvents`, if a client ever wants one connection for everything.
 - A lobby: listing games, matchmaking, and some way to find a game nobody told you the id of.
 - Middleware in `GinApi` for CORS, rate limiting and a request id, when somebody needs them.
-- Container packaging (sbt-native-packager), per the 12-factor goal in `CLAUDE.md`.
+- Publishing the image to a registry, with the tagging, signing and scanning that publishing an
+  artefact for somebody else to pull implies.

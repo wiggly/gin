@@ -80,6 +80,33 @@ sbt server/run
 curl http://localhost:8080/health
 ```
 
+### In a container
+
+```bash
+sbt server/Docker/publishLocal          # builds wiggly-gin:latest
+docker run -p 8080:8080 wiggly-gin:latest
+```
+
+The image is built by [sbt-native-packager](https://sbt-native-packager.readthedocs.io/), which
+writes the Dockerfile, the start script and the non-root user, so none of the three is a file kept
+in step with the build by hand. It runs on `eclipse-temurin:25-jre` as uid 1001 and exposes 8080,
+which is the same port the configuration defaults to, so an image run with no environment at all
+listens where the Dockerfile says it does.
+
+Every setting below is read at run time, so one image serves every environment:
+
+```bash
+docker run -p 9000:9000 -e GIN_HTTP_PORT=9000 wiggly-gin:latest
+```
+
+The heap is sized from the container's limit rather than from the host's memory, because the start
+script carries `-XX:MaxRAMPercentage=75`. In a 512MB container that is a 384MB ceiling; without it
+the JVM default would be 128MB. `JAVA_OPTS` overrides it.
+
+There is no `HEALTHCHECK` in the image. `/health` is there to be probed by whatever runs the
+container, and baking one in would mean adding a package to the image for the sole purpose of
+making an HTTP request.
+
 ### Configuration
 
 All configuration comes from the environment, with defaults that work unchanged in a container.
@@ -152,6 +179,11 @@ sbt test            # all modules
 sbt server/test     # one module
 sbt scalafmtAll     # format; scalafmtCheckAll to verify without writing
 ```
+
+`.github/workflows/ci.yml` runs the gate, the coverage floors, the image build and a start of that
+image, on pushes to `main` and on every pull request. The gate step is the same line `CLAUDE.md`
+asks you to run before handing work over, so the two cannot come to disagree about what the gate
+is.
 
 Tests are [weaver](https://typelevel.org/weaver-test/) suites, property-based by default via
 `weaver-scalacheck`. Conventions:
