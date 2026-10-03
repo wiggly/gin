@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A superseded run is cancelled rather than left to finish, because the only answer anybody wants
+# is about the newest commit on the branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: sbt
+
+      # sbt is no longer on the runner image, so it is installed rather than assumed.
+      - uses: sbt/setup-sbt@v1
+
+      # The gate from CLAUDE.md, character for character, so that the file and the pipeline cannot
+      # come to disagree about what the gate is.
+      - name: Gate
+        run: sbt scalafmtCheckAll scalafmtSbtCheck test
+        env:
+          SBT_TPOLECAT_CI: 1
+
+      # Separate from the gate because it rebuilds from clean and is slower. A coverage floor that
+      # is only enforced when somebody remembers to run it is not a floor.
+      - name: Coverage
+        run: sbt coverageAll
+
+      # Building the image here is what stops the packaging drifting away from the code.
+      - name: Image
+        run: sbt server/Docker/publishLocal
+
+      # And starting it is what stops the packaging producing an image that builds and cannot run.
+      - name: The image starts and answers
+        run: |
+          docker run --detach --name gin --publish 8080:8080 wiggly-gin:latest
+          for _ in $(seq 1 60); do
+            curl --silent --fail http://localhost:8080/health && break
+            sleep 1
+          done
+          curl --silent --fail http://localhost:8080/health
+          docker rm --force gin
