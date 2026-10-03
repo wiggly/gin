@@ -1,9 +1,8 @@
 # Game flow
 
 This document describes one round of gin rummy as a state machine. A state machine is a fixed set
-of states with named moves between them. It is the rules reference for the `core` domain, and the
-working plans for [the state machine](PLAN-STATE-MACHINE.md) and [scoring](PLAN-SCORING.md) point
-here for every rule so that each rule is written once.
+of states with named moves between them. It is the rules reference for the `core` domain, and
+[the design document](DESIGN.md) points here for every rule, so that each rule is written once.
 
 The round is the unit this document covers. A match is a sequence of rounds. The last two sections
 cover what a round is worth and how the rounds add up.
@@ -41,8 +40,9 @@ The deal takes the seating as well as the deck, because the seating is what says
 players dealt. Nothing in a round reads it except the opening, and nothing in a round changes it.
 
 The deal takes a deck that is already shuffled. A shuffle is an effect, so it stays outside the
-domain. Step 5 of the [roadmap](ROADMAP.md) adds the port that supplies a shuffled deck. Until
-then a test deals a deck it wrote by hand, and the round that comes back is legal by construction.
+domain. The `Shuffler` port supplies the shuffled deck, and [the design document](DESIGN.md) says
+where that port sits. A test deals a deck it wrote by hand, and the round that comes back is legal
+by construction.
 
 ## The states
 

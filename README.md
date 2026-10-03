@@ -2,8 +2,8 @@
 
 A multiplayer game server for Gin Rummy
 
-The rules of a round are in [the game flow document](docs/GAME-FLOW.md). Where the work goes next
-is in [the roadmap](docs/ROADMAP.md).
+How the server is built, and why, is in [the design document](docs/DESIGN.md). The rules of a
+round are in [the game flow document](docs/GAME-FLOW.md).
 
 ## Modules
 
