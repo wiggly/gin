@@ -1,0 +1,768 @@
+openapi: 3.1.0
+
+info:
+  title: wiggly-gin
+  version: 1.0.0
+  summary: A multiplayer game server for Gin Rummy.
+  description: |
+    Two players share one game. A player creates a game and takes the first seat. A second player
+    joins and takes the other seat, which deals the first round. Each player then reads their own
+    view of the game, plays moves into it, and can hold a stream open to receive every later view.
+
+    A token (a secret string that holds a seat) is the whole of a player's claim to a seat. Both
+    `POST /api/v1/games` and `POST /api/v1/games/{id}/join` hand one back. Every other operation
+    needs it.
+
+    A player never sees the opponent's hand or the order of the stock. The server sends a
+    `PlayerView`, which holds only the cards that player is allowed to know about.
+
+    Every response carries a JSON body, including the refusals, so one parser handles all of them.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+
+servers:
+  - url: http://localhost:8080
+    description: The default local bind. The host and the port come from GIN_HTTP_HOST and GIN_HTTP_PORT.
+
+tags:
+  - name: health
+    description: Liveness, for load balancers and container orchestrators.
+  - name: games
+    description: The routes a client plays a game through.
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      operationId: health
+      summary: Liveness probe
+      security: []
+      description: |
+        A response at all means the process is alive and the HTTP stack is serving. This endpoint
+        says nothing about downstream dependencies.
+      responses:
+        "200":
+          description: The process is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    const: ok
+                required: [status]
+              example:
+                status: ok
+
+  /api/v1/games:
+    post:
+      tags: [games]
+      operationId: createGame
+      summary: Create a game and take the first seat
+      security: []
+      description: |
+        The caller becomes player one. The game waits for a second player. The response holds the
+        game id and the token for this seat. Store the token: the server never sends it again.
+      responses:
+        "201":
+          description: The game exists and the caller holds the first seat.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Credentials"
+
+  /api/v1/games/{id}/join:
+    post:
+      tags: [games]
+      operationId: joinGame
+      summary: Take the second seat
+      security: []
+      description: |
+        The caller becomes player two, and the first round is dealt. The response holds the token
+        for the second seat. A game that already has two players refuses this.
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: The caller holds the second seat and the first round is dealt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Credentials"
+        "404":
+          $ref: "#/components/responses/NoSuchGame"
+        "409":
+          description: Both seats are already taken.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: already-full
+
+  /api/v1/games/{id}:
+    get:
+      tags: [games]
+      operationId: lookAtGame
+      summary: Read your own view of the game
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      responses:
+        "200":
+          description: The view belonging to the player who holds the token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerView"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/NotAPlayer"
+        "404":
+          $ref: "#/components/responses/NoSuchGame"
+
+  /api/v1/games/{id}/moves:
+    post:
+      tags: [games]
+      operationId: playMove
+      summary: Play a move
+      description: |
+        The move is applied to the game, and the response is the mover's own view of what the game
+        became. A move the rules refuse changes nothing and is answered with 422.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Move"
+      responses:
+        "200":
+          description: The move was played. The body is the mover's view of the new state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerView"
+        "400":
+          description: The body is not a move.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: malformed-move
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/NotAPlayer"
+        "404":
+          $ref: "#/components/responses/NoSuchGame"
+        "409":
+          description: The game is not in play, because it waits for a second player or it is over.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: not-in-play
+        "422":
+          description: The rules of the game refuse this move. The body names the rule.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleViolation"
+              example:
+                error: not-your-turn
+
+  /api/v1/games/{id}/events:
+    get:
+      tags: [games]
+      operationId: watchGame
+      summary: Stream your view of the game
+      description: |
+        The stream opens with the state as it stands, and then sends one event for every state the
+        game reaches afterwards. The connection stays open until the client closes it.
+
+        The token can go in the `Authorization` header or in the `token` query parameter. The query
+        parameter exists for browsers, because an `EventSource` cannot set a header. It is the
+        weaker of the two places, because a query string reaches logs and proxy history.
+      security:
+        - bearerAuth: []
+        - tokenQuery: []
+      parameters:
+        - $ref: "#/components/parameters/GameId"
+        - name: token
+          in: query
+          required: false
+          description: The seat token, for clients that cannot set the Authorization header.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: |
+            An open event stream. Each event carries one `PlayerView` as JSON on its `data:` line.
+            An idle stream sends a comment line every GIN_HTTP_EVENT_HEARTBEAT, because a proxy
+            drops an idle connection and a dropped connection looks like a game that stopped
+            responding. OpenAPI cannot describe the framing, so the schema is the raw stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                data: {"state":"awaiting-opponent","id":"c0ffee","you":"one"}
+
+                : still here
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/NotAPlayer"
+        "404":
+          $ref: "#/components/responses/NoSuchGame"
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: "The seat token, as `Authorization: Bearer <token>`."
+    tokenQuery:
+      type: apiKey
+      in: query
+      name: token
+      description: |
+        The seat token in the query string. The event stream accepts this, and no other operation
+        does.
+
+  parameters:
+    GameId:
+      name: id
+      in: path
+      required: true
+      description: The game id, as handed back by createGame.
+      schema:
+        type: string
+
+  responses:
+    Unauthorized:
+      description: The request carried no token.
+      headers:
+        WWW-Authenticate:
+          description: Always `Bearer realm="gin"`.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: unauthorized
+    NotAPlayer:
+      description: The token belongs to neither seat at this game.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: not-a-player
+    NoSuchGame:
+      description: No game has this id.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: no-such-game
+
+  schemas:
+
+    Error:
+      type: object
+      description: |
+        Every refusal has this shape. The value of `error` names the refusal and nothing more.
+
+        A request to a path the server does not route is also answered with this shape, but the
+        value is the HTTP reason phrase, such as `Not Found` or `Internal Server Error`. A failure
+        inside the server says nothing beyond the status, because the detail goes to the logs.
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    RuleViolation:
+      type: object
+      description: A move the rules of the game refuse. The value names the rule that refused it.
+      properties:
+        error:
+          type: string
+          enum:
+            - not-your-turn
+            - must-draw
+            - must-discard
+            - nothing-to-pass
+            - pile-closed
+            - stock-closed
+            - card-not-held
+            - cannot-discard-drawn-card
+            - cannot-knock
+            - round-over
+      required: [error]
+
+    Player:
+      type: string
+      description: One of the two seats at a game.
+      enum: [one, two]
+
+    Rank:
+      type: string
+      enum: [ace, two, three, four, five, six, seven, eight, nine, ten, jack, queen, king]
+
+    Suit:
+      type: string
+      enum: [spades, hearts, diamonds, clubs]
+
+    Card:
+      type: object
+      properties:
+        rank:
+          $ref: "#/components/schemas/Rank"
+        suit:
+          $ref: "#/components/schemas/Suit"
+      required: [rank, suit]
+      example:
+        rank: seven
+        suit: hearts
+
+    Meld:
+      type: object
+      description: |
+        Three or more cards that count for nothing against a player. A set is cards of one rank. A
+        run is cards of one suit in sequence.
+      properties:
+        kind:
+          type: string
+          enum: [set, run]
+        cards:
+          type: array
+          minItems: 3
+          items:
+            $ref: "#/components/schemas/Card"
+      required: [kind, cards]
+
+    Arrangement:
+      type: object
+      description: |
+        A hand split into the melds it can make and the cards left over. The server picks the split
+        that leaves the least deadwood, so a player never has to find it themselves.
+      properties:
+        melds:
+          type: array
+          items:
+            $ref: "#/components/schemas/Meld"
+        deadwood:
+          type: array
+          description: The cards that are in no meld.
+          items:
+            $ref: "#/components/schemas/Card"
+        deadwoodValue:
+          type: integer
+          description: What the deadwood is worth. A player can knock at ten or under.
+          readOnly: true
+      required: [melds, deadwood, deadwoodValue]
+
+    Defence:
+      type: object
+      description: |
+        The defender's hand after a knock, split against the melds the knocker laid down. It is an
+        Arrangement with one extra pile, for the cards laid onto the knocker's melds.
+      properties:
+        melds:
+          type: array
+          items:
+            $ref: "#/components/schemas/Meld"
+        layoffs:
+          type: array
+          description: Cards placed onto the knocker's melds, which therefore count for nothing.
+          items:
+            $ref: "#/components/schemas/Card"
+        deadwood:
+          type: array
+          items:
+            $ref: "#/components/schemas/Card"
+        deadwoodValue:
+          type: integer
+          readOnly: true
+      required: [melds, layoffs, deadwood, deadwoodValue]
+
+    Tally:
+      type: object
+      description: A number for each seat, used for running totals and for final scores.
+      properties:
+        one:
+          type: integer
+        two:
+          type: integer
+      required: [one, two]
+
+    MatchResult:
+      type: object
+      properties:
+        winner:
+          $ref: "#/components/schemas/Player"
+        totals:
+          $ref: "#/components/schemas/Tally"
+      required: [winner, totals]
+
+    Outcome:
+      type: object
+      description: How a round ended. A null `knockedBy` means nobody knocked and the stock ran out.
+      properties:
+        knockedBy:
+          oneOf:
+            - $ref: "#/components/schemas/Player"
+            - type: "null"
+      required: [knockedBy]
+
+    RoundScore:
+      oneOf:
+        - $ref: "#/components/schemas/RoundScoreDead"
+        - $ref: "#/components/schemas/RoundScoreAwarded"
+      discriminator:
+        propertyName: result
+        mapping:
+          dead: "#/components/schemas/RoundScoreDead"
+          knock: "#/components/schemas/RoundScoreAwarded"
+          gin: "#/components/schemas/RoundScoreAwarded"
+          undercut: "#/components/schemas/RoundScoreAwarded"
+
+    RoundScoreDead:
+      type: object
+      description: Nobody knocked before the stock ran out, so nobody scored.
+      properties:
+        result:
+          type: string
+          const: dead
+      required: [result]
+
+    RoundScoreAwarded:
+      type: object
+      description: |
+        Somebody scored. A knock pays the difference in deadwood. Gin pays the defender's whole
+        deadwood plus 25. An undercut pays the defender the difference plus 25, so the winner here
+        is the player who did not knock.
+      properties:
+        result:
+          type: string
+          enum: [knock, gin, undercut]
+        winner:
+          $ref: "#/components/schemas/Player"
+        points:
+          type: integer
+      required: [result, winner, points]
+
+    RoundResult:
+      type: object
+      description: |
+        A finished round, laid out. `knocker` and `defender` are both null when nobody knocked,
+        because there was no showdown to lay out.
+      properties:
+        outcome:
+          $ref: "#/components/schemas/Outcome"
+        knocker:
+          oneOf:
+            - $ref: "#/components/schemas/Arrangement"
+            - type: "null"
+        defender:
+          oneOf:
+            - $ref: "#/components/schemas/Defence"
+            - type: "null"
+        score:
+          $ref: "#/components/schemas/RoundScore"
+      required: [outcome, knocker, defender, score]
+
+    Credentials:
+      type: object
+      description: A seat at a game. The token is sent once and is never sent again.
+      properties:
+        id:
+          type: string
+        you:
+          $ref: "#/components/schemas/Player"
+        token:
+          type: string
+      required: [id, you, token]
+
+    Move:
+      description: |
+        Everything a player can do on their turn. `draw-stock` and `draw-discard` take a card.
+        `discard` and `knock` put one back, and `knock` also ends the round. `pass` refuses the
+        upcard, and only the opening of a round offers one.
+      oneOf:
+        - $ref: "#/components/schemas/MoveDrawStock"
+        - $ref: "#/components/schemas/MoveDrawDiscard"
+        - $ref: "#/components/schemas/MovePass"
+        - $ref: "#/components/schemas/MoveDiscard"
+        - $ref: "#/components/schemas/MoveKnock"
+      discriminator:
+        propertyName: move
+        mapping:
+          draw-stock: "#/components/schemas/MoveDrawStock"
+          draw-discard: "#/components/schemas/MoveDrawDiscard"
+          pass: "#/components/schemas/MovePass"
+          discard: "#/components/schemas/MoveDiscard"
+          knock: "#/components/schemas/MoveKnock"
+
+    MoveDrawStock:
+      type: object
+      description: Take the top card of the face-down stock.
+      properties:
+        move:
+          type: string
+          const: draw-stock
+      required: [move]
+
+    MoveDrawDiscard:
+      type: object
+      description: Take the upcard, which is the top card of the face-up discard pile.
+      properties:
+        move:
+          type: string
+          const: draw-discard
+      required: [move]
+
+    MovePass:
+      type: object
+      description: Refuse the upcard offered at the opening of a round.
+      properties:
+        move:
+          type: string
+          const: pass
+      required: [move]
+
+    MoveDiscard:
+      type: object
+      description: Put a card on the discard pile and end the turn.
+      properties:
+        move:
+          type: string
+          const: discard
+        card:
+          $ref: "#/components/schemas/Card"
+      required: [move, card]
+
+    MoveKnock:
+      type: object
+      description: |
+        Discard this card and end the round. The server refuses the knock if the ten cards left
+        are worth more than ten in deadwood.
+      properties:
+        move:
+          type: string
+          const: knock
+        card:
+          $ref: "#/components/schemas/Card"
+      required: [move, card]
+
+    Phase:
+      description: What the game waits for.
+      oneOf:
+        - $ref: "#/components/schemas/PhaseUpcardOffered"
+        - $ref: "#/components/schemas/PhaseAwaitingOpeningDraw"
+        - $ref: "#/components/schemas/PhaseAwaitingDraw"
+        - $ref: "#/components/schemas/PhaseAwaitingDiscard"
+      discriminator:
+        propertyName: phase
+        mapping:
+          upcard-offered: "#/components/schemas/PhaseUpcardOffered"
+          awaiting-opening-draw: "#/components/schemas/PhaseAwaitingOpeningDraw"
+          awaiting-draw: "#/components/schemas/PhaseAwaitingDraw"
+          awaiting-discard: "#/components/schemas/PhaseAwaitingDiscard"
+
+    PhaseUpcardOffered:
+      type: object
+      description: The upcard is offered to this player, who can take it or pass.
+      properties:
+        phase:
+          type: string
+          const: upcard-offered
+        player:
+          $ref: "#/components/schemas/Player"
+      required: [phase, player]
+
+    PhaseAwaitingOpeningDraw:
+      type: object
+      description: |
+        Both players refused the upcard, so the player who did not deal draws from the stock, and
+        only from the stock. This is the one phase that names nobody.
+      properties:
+        phase:
+          type: string
+          const: awaiting-opening-draw
+      required: [phase]
+
+    PhaseAwaitingDraw:
+      type: object
+      description: This player draws, from the stock or from the discard pile.
+      properties:
+        phase:
+          type: string
+          const: awaiting-draw
+        player:
+          $ref: "#/components/schemas/Player"
+      required: [phase, player]
+
+    PhaseAwaitingDiscard:
+      type: object
+      description: |
+        This player drew and owes a discard, so they hold eleven cards. `taken` is the card they
+        lifted from the discard pile this turn, which they cannot put straight back. It is null
+        when they drew from the stock.
+      properties:
+        phase:
+          type: string
+          const: awaiting-discard
+        player:
+          $ref: "#/components/schemas/Player"
+        taken:
+          oneOf:
+            - $ref: "#/components/schemas/Card"
+            - type: "null"
+      required: [phase, player, taken]
+
+    PlayerView:
+      description: |
+        One player's view of a game. It is the only shape a game is ever seen in, and it holds
+        nothing the player is not allowed to know. The opponent appears as a card count, and the
+        stock appears as a size.
+      oneOf:
+        - $ref: "#/components/schemas/PlayerViewAwaitingOpponent"
+        - $ref: "#/components/schemas/PlayerViewInPlay"
+        - $ref: "#/components/schemas/PlayerViewOver"
+      discriminator:
+        propertyName: state
+        mapping:
+          awaiting-opponent: "#/components/schemas/PlayerViewAwaitingOpponent"
+          in-play: "#/components/schemas/PlayerViewInPlay"
+          over: "#/components/schemas/PlayerViewOver"
+
+    PlayerViewAwaitingOpponent:
+      type: object
+      description: The game has one player and waits for the other.
+      properties:
+        state:
+          type: string
+          const: awaiting-opponent
+        id:
+          type: string
+        you:
+          $ref: "#/components/schemas/Player"
+      required: [state, id, you]
+
+    PlayerViewInPlay:
+      type: object
+      description: A round is under way.
+      properties:
+        state:
+          type: string
+          const: in-play
+        id:
+          type: string
+        you:
+          $ref: "#/components/schemas/Player"
+        arrangement:
+          $ref: "#/components/schemas/Arrangement"
+        dealer:
+          $ref: "#/components/schemas/Player"
+        onTurn:
+          $ref: "#/components/schemas/Player"
+        phase:
+          $ref: "#/components/schemas/Phase"
+        upcard:
+          description: The top card of the discard pile, or null when the pile is empty.
+          oneOf:
+            - $ref: "#/components/schemas/Card"
+            - type: "null"
+        stockSize:
+          type: integer
+        discardSize:
+          type: integer
+        opponentSize:
+          type: integer
+          description: How many cards the opponent holds, which is ten or eleven.
+        totals:
+          $ref: "#/components/schemas/Tally"
+          description: The match score so far. A match runs to 100.
+        previous:
+          description: The round before this one, or null in the first round of a match.
+          oneOf:
+            - $ref: "#/components/schemas/RoundResult"
+            - type: "null"
+      required:
+        - state
+        - id
+        - you
+        - arrangement
+        - dealer
+        - onTurn
+        - phase
+        - upcard
+        - stockSize
+        - discardSize
+        - opponentSize
+        - totals
+        - previous
+      example:
+        state: in-play
+        id: c0ffee
+        you: one
+        arrangement:
+          melds:
+            - kind: set
+              cards:
+                - { rank: four, suit: spades }
+                - { rank: four, suit: hearts }
+                - { rank: four, suit: clubs }
+          deadwood:
+            - { rank: two, suit: spades }
+            - { rank: nine, suit: hearts }
+            - { rank: jack, suit: hearts }
+            - { rank: three, suit: diamonds }
+            - { rank: six, suit: diamonds }
+            - { rank: king, suit: diamonds }
+            - { rank: eight, suit: clubs }
+          deadwoodValue: 48
+        dealer: two
+        onTurn: one
+        phase:
+          phase: upcard-offered
+          player: one
+        upcard: { rank: seven, suit: hearts }
+        stockSize: 31
+        discardSize: 1
+        opponentSize: 10
+        totals: { one: 0, two: 0 }
+        previous: null
+
+    PlayerViewOver:
+      type: object
+      description: One player reached 100, so the match is finished and no further move is allowed.
+      properties:
+        state:
+          type: string
+          const: over
+        id:
+          type: string
+        you:
+          $ref: "#/components/schemas/Player"
+        result:
+          $ref: "#/components/schemas/MatchResult"
+        previous:
+          $ref: "#/components/schemas/RoundResult"
+      required: [state, id, you, result, previous]

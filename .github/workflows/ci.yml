@@ -54,3 +54,22 @@ jobs:
           done
           curl --silent --fail http://localhost:8080/health
           docker rm --force gin
+
+  # A separate job, because it needs Node rather than a JVM and finishes in seconds. It runs
+  # beside the gate rather than after it, so a broken description is reported on the same run.
+  openapi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      # The description is hand written, so nothing here proves it matches the code. What the
+      # lint catches is a description that is broken or malformed, which a client's generator
+      # would otherwise find first.
+      - name: Lint the OpenAPI description
+        run: npx --yes @redocly/cli@2 lint docs/openapi.yaml

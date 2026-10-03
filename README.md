@@ -127,6 +127,10 @@ The defaults and the environment variables that override them live in
 
 ## Endpoints
 
+[`docs/openapi.yaml`](docs/openapi.yaml) describes every endpoint and every payload. It is the
+authority on the shapes, and the tables below are the overview. It is hand written, so CI lints
+it rather than proving that it matches the code.
+
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /health` | Liveness probe: `200 {"status":"ok"}` |
@@ -183,7 +187,10 @@ sbt scalafmtAll     # format; scalafmtCheckAll to verify without writing
 `.github/workflows/ci.yml` runs the gate, the coverage floors, the image build and a start of that
 image, on pushes to `main` and on every pull request. The gate step is the same line `CLAUDE.md`
 asks you to run before handing work over, so the two cannot come to disagree about what the gate
-is.
+is. A second job lints `docs/openapi.yaml` with
+[redocly](https://redocly.com/docs/cli/commands/lint). It runs beside the gate, because it needs
+Node rather than a JVM. `redocly.yaml` names the ruleset, so that a new release of the linter
+cannot fail the build on a rule nobody chose.
 
 Tests are [weaver](https://typelevel.org/weaver-test/) suites, property-based by default via
 `weaver-scalacheck`. Conventions:

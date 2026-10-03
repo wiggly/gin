@@ -1,0 +1,13 @@
+# The ruleset the CI lint runs with. Stated rather than left to the default, so that a new
+# release of redocly cannot start failing the build on a rule nobody chose.
+extends:
+  - recommended
+
+rules:
+  # The server genuinely is a localhost bind. There is no hosted deployment to name instead, and
+  # the host and the port are environment variables rather than anything this file can know.
+  no-server-example.com: off
+
+  # Two operations cannot refuse anything: the liveness probe takes no input, and creating a game
+  # needs neither a token nor a body.
+  operation-4xx-response: off
