@@ -83,11 +83,24 @@ lazy val core = project
 lazy val server = project
   .in(file("modules/server"))
   .dependsOn(core % "compile->compile;test->test")
+  .enablePlugins(JavaAppPackaging, DockerPlugin)
   .settings(commonSettings)
   .settings(
     name := "wiggly-gin-server",
     // cats-effect's IOApp needs the main thread for correct resource cleanup.
     Compile / run / fork := true,
+    // The image. sbt-native-packager writes the Dockerfile, the start script and the non-root
+    // user, so none of the three is a file anybody has to keep in step with this build.
+    Docker / packageName := "wiggly-gin",
+    dockerBaseImage      := "eclipse-temurin:25-jre",
+    // Matches the default in application.conf, so an image run with no environment at all listens
+    // where the Dockerfile says it does.
+    dockerExposedPorts := Seq(8080),
+    dockerUpdateLatest := true,
+    // A JVM in a container sizes its heap from the container's limit only when told to as a
+    // percentage. The default is a fraction of the host's memory, which is the wrong number and is
+    // wrong quietly. JAVA_OPTS still overrides this at run time.
+    Universal / javaOptions += "-J-XX:MaxRAMPercentage=75",
     libraryDependencies ++= Seq(
       "org.http4s"            %% "http4s-ember-server" % http4sVersion,
       "org.http4s"            %% "http4s-circe"        % http4sVersion,
