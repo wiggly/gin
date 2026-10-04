@@ -108,7 +108,10 @@ lazy val ui = project
     scalaJSUseMainModuleInitializer := true,
     libraryDependencies ++= Seq(
       "io.indigoengine" %%% "tyrian-io"   % tyrianVersion,
-      "org.scala-js"    %%% "scalajs-dom" % scalajsDomVersion
+      "org.scala-js"    %%% "scalajs-dom" % scalajsDomVersion,
+      // The browser receives payloads as strings. protocol defines the codecs and needs no parser
+      // of its own, so the artifact that turns a string into Json belongs here.
+      "io.circe" %%% "circe-parser" % circeVersion
     )
   )
 
