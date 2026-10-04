@@ -1,3 +1,4 @@
+import org.scalajs.linker.interface.ModuleKind
 import org.typelevel.sbt.tpolecat.DevMode
 import org.typelevel.scalacoptions.ScalacOptions
 
@@ -43,6 +44,8 @@ lazy val log4catsVersion   = "2.8.0"
 lazy val logbackVersion    = "1.5.38"
 lazy val scalaCheckVersion = "1.20.0"
 lazy val weaverVersion     = "0.13.0"
+lazy val tyrianVersion     = "0.14.0"
+lazy val scalajsDomVersion = "2.8.0"
 
 // Tests are weaver suites: property-based by default, effectful without ceremony.
 lazy val testSettings = Seq(
@@ -58,7 +61,7 @@ lazy val commonSettings = testSettings
 
 lazy val root = project
   .in(file("."))
-  .aggregate(core.jvm, core.js, protocol.jvm, protocol.js, server)
+  .aggregate(core.jvm, core.js, protocol.jvm, protocol.js, server, ui)
   .settings(
     name           := "wiggly-gin",
     publish / skip := true
@@ -89,6 +92,24 @@ lazy val protocol = crossProject(JSPlatform, JVMPlatform)
   .settings(
     name                               := "wiggly-gin-protocol",
     libraryDependencies += "io.circe" %%% "circe-core" % circeVersion
+  )
+
+// The browser. JavaScript only: there is no JVM meaning for a page.
+lazy val ui = project
+  .in(file("modules/ui"))
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(protocol.js % "compile->compile;test->test")
+  .settings(commonSettings)
+  .settings(
+    name := "wiggly-gin-ui",
+    // One module rather than many. Nothing here is large enough for splitting to pay, and it keeps
+    // the page's script tag and the server's generated resources to one file each.
+    scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
+    scalaJSUseMainModuleInitializer := true,
+    libraryDependencies ++= Seq(
+      "io.indigoengine" %%% "tyrian-io"   % tyrianVersion,
+      "org.scala-js"    %%% "scalajs-dom" % scalajsDomVersion
+    )
   )
 
 // Driving adapter: exposes the game over HTTP. Depends on core, never the other way round.
