@@ -19,7 +19,7 @@ ThisBuild / tpolecatDevModeOptions += ScalacOptions.noIndent
 // drives them, so counting them would only depress the figure.
 // The patterns carry no `.scala`: the compiler strips the extension before matching, and the whole
 // path has to match, so a pattern ending in `.scala` silently excludes nothing.
-ThisBuild / coverageExcludedFiles := ".*/server/Main;.*/server/HttpServer"
+ThisBuild / coverageExcludedFiles := ".*/server/Main;.*/server/HttpServer;.*/ui/Main;.*/ui/View"
 // Floors sit a few points under the measured aggregate (87.83% statement, 57.14% branch) so that
 // ordinary churn does not trip them. They bite on `coverageAggregate`, not on a single module.
 ThisBuild / coverageFailOnMinimum      := true
@@ -105,7 +105,9 @@ lazy val ui = project
     // One module rather than many. Nothing here is large enough for splitting to pay, and it keeps
     // the page's script tag and the server's generated resources to one file each.
     scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
-    scalaJSUseMainModuleInitializer := true,
+    // Tyrian exports `launch` rather than a `main`, so the page starts the application and the
+    // linker must not look for an entry point of its own.
+    scalaJSUseMainModuleInitializer := false,
     libraryDependencies ++= Seq(
       "io.indigoengine" %%% "tyrian-io"   % tyrianVersion,
       "org.scala-js"    %%% "scalajs-dom" % scalajsDomVersion,
