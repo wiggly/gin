@@ -27,11 +27,20 @@ object SeatSuite extends SimpleIOSuite {
       expect.same(None, Seat.decode(GameId("g1"), "rubbish"))
   }
 
-  pureTest("a game id is read out of a path") {
-    expect.same(Some("g1"), Seat.gameIdIn("/g1"))
+  pureTest("a game id is read out of a play path") {
+    expect.same(Some("g1"), Seat.gameIdIn("/play/g1"))
   }
 
   pureTest("the root path names no game") {
     expect.same(None, Seat.gameIdIn("/"))
+  }
+
+  pureTest("a path the server answers for itself names no game") {
+    expect.same(None, Seat.gameIdIn("/health")) and
+      expect.same(None, Seat.gameIdIn("/api/v1/games"))
+  }
+
+  pureTest("the link to a game is the path that opens it") {
+    expect.same(Some("g1"), Seat.gameIdIn(Seat.linkTo(GameId("g1"))))
   }
 }

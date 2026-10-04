@@ -47,8 +47,9 @@ object View {
   private def awaiting(view: PlayerView.AwaitingOpponent, error: Option[String]): Html[Msg] = {
     div(cls := "waiting")(
       h1(text("Waiting for the other player")),
-      p(text("Send them this game:")),
-      code(cls := "game-id")(text(view.id.value)),
+      p(text("Send them this link:")),
+      code(cls := "game-id")(text(Seat.linkTo(view.id))),
+      p(cls := "or")(text(s"or the game id on its own: ${view.id.value}")),
       problem(error)
     )
   }

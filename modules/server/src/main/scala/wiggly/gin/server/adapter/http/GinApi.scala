@@ -1,8 +1,9 @@
 package wiggly.gin.server.adapter.http
 
 import cats.data.Kleisli
-import cats.effect.Concurrent
+import cats.effect.Async
 import cats.syntax.applicativeError.*
+import cats.syntax.semigroupk.*
 import io.circe.Json
 import org.http4s.circe.CirceEntityEncoder.circeEntityEncoder
 import org.http4s.server.Router
@@ -20,10 +21,14 @@ object GinApi {
     */
   val ApiPrefix: String = "/api/v1"
 
-  def httpApp[F[_]: Concurrent](gameRoutes: HttpRoutes[F]): HttpApp[F] = {
+  /** The order carries two rules, so it is stated here rather than left to whichever route
+    * happens to match first. The API and the health route both answer before the browser
+    * application does, because that application answers every path it is given.
+    */
+  def httpApp[F[_]: Async](gameRoutes: HttpRoutes[F]): HttpApp[F] = {
     val routes = Router(
-      "/"       -> HealthRoutes[F],
-      ApiPrefix -> gameRoutes
+      ApiPrefix -> gameRoutes,
+      "/"       -> (HealthRoutes[F] <+> WebRoutes[F])
     )
 
     jsonErrors(routes)
@@ -33,7 +38,7 @@ object GinApi {
     * one, so that a client can parse every response the same way. The failure case deliberately
     * says nothing beyond the status: the detail goes to the logs, not over the wire.
     */
-  private def jsonErrors[F[_]: Concurrent](routes: HttpRoutes[F]): HttpApp[F] =
+  private def jsonErrors[F[_]: Async](routes: HttpRoutes[F]): HttpApp[F] =
     Kleisli { (request: Request[F]) =>
       routes
         .run(request)

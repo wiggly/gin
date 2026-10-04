@@ -128,6 +128,15 @@ lazy val server = project
     name := "wiggly-gin-server",
     // cats-effect's IOApp needs the main thread for correct resource cleanup.
     Compile / run / fork := true,
+    // The browser application is part of the server's resources, so one command still builds one
+    // image and that image carries the UI. fullLinkJS rather than fastLinkJS: this is what ships.
+    Compile / resourceGenerators += Def.task {
+      val linked = (ui / Compile / fullLinkJS / scalaJSLinkerOutputDirectory).value
+      val into   = (Compile / resourceManaged).value / "web"
+
+      IO.copyDirectory(linked, into, overwrite = true)
+      (into ** "*").get.filter(_.isFile)
+    }.taskValue,
     // The image. sbt-native-packager writes the Dockerfile, the start script and the non-root
     // user, so none of the three is a file anybody has to keep in step with this build.
     Docker / packageName := "wiggly-gin",

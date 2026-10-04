@@ -1,0 +1,47 @@
+:root {
+  --ink: #1b1b1b;
+  --paper: #f4f1ea;
+  --line: #c9c3b6;
+  --red: #a3121a;
+}
+
+body {
+  margin: 0 auto;
+  padding: 1rem;
+  max-width: 44rem;
+  font: 1rem/1.5 system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+h1 { font-size: 1.4rem; }
+h2 { font-size: 1.1rem; }
+
+.card {
+  display: inline-block;
+  margin: 0 0.2rem 0.3rem 0;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+  background: #fff;
+  white-space: nowrap;
+}
+
+/* The one piece of styling that carries meaning rather than decoration. */
+.card.red { color: var(--red); }
+.card.black { color: var(--ink); }
+
+.meld { margin-bottom: 0.3rem; }
+.deadwood { margin-top: 0.6rem; }
+.count { font-weight: 600; }
+
+.scoreboard { display: flex; gap: 1.5rem; border-bottom: 1px solid var(--line); }
+.turn { font-weight: 600; }
+
+.moves { margin: 1rem 0; }
+.moves button { margin: 0 0.3rem 0.3rem 0; padding: 0.4rem 0.6rem; }
+
+.game-id { font-size: 1.2rem; padding: 0.3rem 0.5rem; background: #fff; border: 1px solid var(--line); }
+
+.previous { margin-top: 1.5rem; border-top: 1px solid var(--line); }
+.error { margin-top: 1rem; color: var(--red); }

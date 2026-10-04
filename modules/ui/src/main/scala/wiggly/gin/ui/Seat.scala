@@ -26,9 +26,16 @@ object Seat {
       case _ => None
     }
 
-  /** The game a URL names, which is what makes a shared link open the right table. */
+  /** The game a URL names, which is what makes a shared link open the right table.
+    *
+    * Only `/play/<id>` names one. The server answers every other path itself, so a path this does
+    * not recognise is not a game that failed to load.
+    */
   def gameIdIn(path: String): Option[String] =
-    Option(path).map(_.stripPrefix("/")).filter(_.nonEmpty)
+    Option(path).map(_.split('/').toList).collect { case "" :: "play" :: id :: _ => id }
+
+  /** The link a player sends the other player. */
+  def linkTo(id: GameId): String = s"/play/${id.value}"
 
   def remember(seat: Credentials): Unit =
     dom.window.sessionStorage.setItem(key(seat.id), encode(seat))
