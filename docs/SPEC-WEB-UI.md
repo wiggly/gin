@@ -250,6 +250,24 @@ already are. The model, `update` and `Moves.available` count toward the floor.
 | Delivery | A resource generator into `server` | One command, one image, same origin, and therefore no CORS. |
 | The Tyrian version | 0.14.0 | The last stable release. The current line is a milestone. |
 
+## Where the code came out different
+
+Everything above is what landed, with these exceptions.
+
+| The spec said | The code does | Why |
+| --- | --- | --- |
+| The page answers every path beneath `/` that is not a file | The application's paths are under `/play` | A fallback over the whole of `/` also answers the paths this server already promises a JSON 404 for. Two existing tests said so, and they were right. |
+| `GameGen.legalMoves` keeps its place, pinned by a property | It does, and `GameGen.inPlay` was added beside it | A generator that filtered a played game for one still in play was at the mercy of how often a walk ends a match. This one is built rather than filtered. |
+| The seat is read and written through `sessionStorage` | What a seat reads and writes as is split from the storage it uses | Node has no `window`, so the first version needed a jsdom environment and an npm dependency for two assertions. Splitting them tests the part that can be wrong and leaves two browser calls untested, as `Main` and `HttpServer` already are. |
+| Nothing about decoders | `protocol` gained a decoder for every shape the server sends | The spec assumed the codecs were symmetric. They were not: the server only ever wrote these shapes, so only encoders existed. The browser has to read them. |
+| `scalaJSUseMainModuleInitializer := true` | It is `false` | Tyrian exports `launch` rather than a `main`, so the page starts the application. |
+| The resource generator reads the linker's output directory | It asks for the link first, then reads the directory | Reading the directory is a setting and links nothing. Without the extra line the copy takes whatever a previous build left. After a clean that is nothing, and the image builds with no UI in it. |
+| Nothing about coverage on Scala.js | Coverage is off for every Scala.js target | scoverage instruments with JVM-only collections, which do not link under Scala.js. `core` and `protocol` are still measured on their JVM side. |
+| `circe-parser` is not mentioned | `ui` depends on it | `protocol` defines codecs and needs no parser. The browser receives payloads as strings, so the artifact that turns a string into Json belongs with the adapter that receives them. |
+
+The bundle is 2.8MB of JavaScript before compression, which is the price of the shared domain
+types and of cats-effect in a browser. It was a known cost of this approach rather than a surprise.
+
 ## Deliberately left out
 
 - No WebSocket. It stays on the later list, behind `GameEvents`, as the design document has it.

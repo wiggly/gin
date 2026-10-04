@@ -59,6 +59,12 @@ lazy val testSettings = Seq(
 
 lazy val commonSettings = testSettings
 
+// scoverage instruments with JVM-only collections, which do not link under Scala.js. The same
+// source is measured on the JVM side of each cross-project, so nothing in core or protocol goes
+// unmeasured; what this costs is a figure for the browser-only code in `ui`, which is tested
+// rather than counted.
+lazy val jsSettings = Seq(coverageEnabled := false)
+
 lazy val root = project
   .in(file("."))
   .aggregate(core.jvm, core.js, protocol.jvm, protocol.js, server, ui)
@@ -71,6 +77,7 @@ lazy val core = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .in(file("modules/core"))
   .settings(commonSettings)
+  .jsSettings(jsSettings)
   .settings(
     name := "wiggly-gin-core",
     libraryDependencies ++= Seq(
@@ -89,6 +96,7 @@ lazy val protocol = crossProject(JSPlatform, JVMPlatform)
   .in(file("modules/protocol"))
   .dependsOn(core % "compile->compile;test->test")
   .settings(commonSettings)
+  .jsSettings(jsSettings)
   .settings(
     name                               := "wiggly-gin-protocol",
     libraryDependencies += "io.circe" %%% "circe-core" % circeVersion
@@ -100,6 +108,7 @@ lazy val ui = project
   .enablePlugins(ScalaJSPlugin)
   .dependsOn(protocol.js % "compile->compile;test->test")
   .settings(commonSettings)
+  .settings(jsSettings)
   .settings(
     name := "wiggly-gin-ui",
     // One module rather than many. Nothing here is large enough for splitting to pay, and it keeps
@@ -131,6 +140,10 @@ lazy val server = project
     // The browser application is part of the server's resources, so one command still builds one
     // image and that image carries the UI. fullLinkJS rather than fastLinkJS: this is what ships.
     Compile / resourceGenerators += Def.task {
+      // Reading the output directory is a setting and does not link anything on its own, so the
+      // link is asked for first. Without that line this copies whatever a previous build left
+      // behind, and after a clean that is nothing at all.
+      val _      = (ui / Compile / fullLinkJS).value
       val linked = (ui / Compile / fullLinkJS / scalaJSLinkerOutputDirectory).value
       val into   = (Compile / resourceManaged).value / "web"
 

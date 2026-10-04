@@ -17,6 +17,10 @@ cats-effect 3.6.3, http4s 0.23.37, weaver 0.13.0, sbt 1.13.0.
 
 **Spec:** [`docs/SPEC-WEB-UI.md`](SPEC-WEB-UI.md)
 
+**Status:** implemented on the `web-ui` branch. Where the code came out different from the spec is
+recorded in the spec's own "Where the code came out different" section. The one step nobody has
+done is the two-browser play-through in Task 7, which needs a person at a browser.
+
 ## Global Constraints
 
 - Scala 3.9.0, sbt 1.13.0, JDK 25. Modules live under `modules/`, named `wiggly-gin-<module>`.
@@ -79,7 +83,7 @@ passing unchanged is the proof that the move was only a move.
 - Produces: `wiggly.gin.protocol.Codecs`, with the same members it has today. A cross-built `core`
   available as `core.js` and `core.jvm` in `build.sbt`.
 
-- [ ] **Step 1: Add the Scala.js plugins**
+- [x] **Step 1: Add the Scala.js plugins**
 
 Append to `project/plugins.sbt`:
 
@@ -88,7 +92,7 @@ addSbtPlugin("org.scala-js"       % "sbt-scalajs"                   % "1.22.0")
 addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject"      % "1.4.0")
 ```
 
-- [ ] **Step 2: Make the shared test settings resolve on both platforms**
+- [x] **Step 2: Make the shared test settings resolve on both platforms**
 
 `testSettings` in `build.sbt` names weaver with `%%`, which resolves the JVM artifact only. A
 cross-project's JavaScript side needs `%%%`. That operator picks the artifact for the platform it
@@ -107,7 +111,7 @@ lazy val testSettings = Seq(
 
 Getting this wrong fails late and confusingly, with weaver unresolved for `core.js` only.
 
-- [ ] **Step 3: Make `core` a cross-project and add `protocol`**
+- [x] **Step 3: Make `core` a cross-project and add `protocol`**
 
 Replace the `lazy val core = project...` block with this. `CrossType.Pure` is what keeps every
 source file in `modules/core/src/main/scala` exactly where it is:
@@ -143,7 +147,7 @@ lazy val protocol = crossProject(JSPlatform, JVMPlatform)
 
 Note the `%%%` rather than `%%`. It picks the right artifact for each platform.
 
-- [ ] **Step 4: Point `server` at `protocol` and update the aggregate**
+- [x] **Step 4: Point `server` at `protocol` and update the aggregate**
 
 In `build.sbt`, change `server`'s `dependsOn` and the `root` aggregate:
 
@@ -165,7 +169,7 @@ lazy val server = project
 
 `server` reaches `core` through `protocol`, so the direct edge goes.
 
-- [ ] **Step 5: Move the codec file**
+- [x] **Step 5: Move the codec file**
 
 ```bash
 mkdir -p modules/protocol/src/main/scala/wiggly/gin/protocol
@@ -181,7 +185,7 @@ Change the first line of each moved file from
 
 Nothing else in either file changes.
 
-- [ ] **Step 6: Import the codecs where they were used**
+- [x] **Step 6: Import the codecs where they were used**
 
 `GameRoutes.scala` referred to `Codecs` from its own package. Add the import beside the others:
 
@@ -192,18 +196,18 @@ import wiggly.gin.protocol.Codecs
 Run `grep -rn 'Codecs' modules/server/src` and add that import to every file the grep names that
 does not already have it.
 
-- [ ] **Step 7: Run the suites and make sure they pass**
+- [x] **Step 7: Run the suites and make sure they pass**
 
 Run: `sbt test`
 Expected: PASS. `CodecsSuite` runs twice now, once on the JVM and once on Node, and every other
 suite is unchanged. A failure here means the move changed something, which it must not.
 
-- [ ] **Step 8: Run the gate**
+- [x] **Step 8: Run the gate**
 
 Run: `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test`
 Expected: PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -227,7 +231,7 @@ in the domain, where the server and the browser both read the same one.
 - Produces: `wiggly.gin.core.domain.Moves.available(view: PlayerView.InPlay): List[Move]`.
   `GameGen.inPlay: Gen[Game.InPlay]`.
 
-- [ ] **Step 1: Add a generator for a game that is in play**
+- [x] **Step 1: Add a generator for a game that is in play**
 
 `GameGen.gamePlayed(steps)` already returns a `Gen[Game]`, but a `Game` can be waiting or over. Add
 this beside it, so a property can ask for the case it needs:
@@ -239,7 +243,7 @@ this beside it, so a property can ask for the case it needs:
   val inPlay: Gen[Game.InPlay] = gamePlayed(12).collect { case playing: Game.InPlay => playing }
 ```
 
-- [ ] **Step 2: Write the failing agreement property**
+- [x] **Step 2: Write the failing agreement property**
 
 Create `modules/core/src/test/scala/wiggly/gin/core/domain/MovesSuite.scala`:
 
@@ -294,12 +298,12 @@ object MovesSuite extends SimpleIOSuite with Checkers {
 The second property is the one that matters. It pins the function against the transition function
 itself rather than against a second reading of the rules.
 
-- [ ] **Step 3: Run it and make sure it fails**
+- [x] **Step 3: Run it and make sure it fails**
 
 Run: `sbt "core/testOnly wiggly.gin.core.domain.MovesSuite"`
 Expected: FAIL to compile, with "Not found: Moves".
 
-- [ ] **Step 4: Write the implementation**
+- [x] **Step 4: Write the implementation**
 
 Create `modules/core/src/main/scala/wiggly/gin/core/domain/Moves.scala`:
 
@@ -355,7 +359,7 @@ object Moves {
 
 If `=!=` does not resolve, add `import cats.syntax.all.*` at the top.
 
-- [ ] **Step 5: Run the suite and make sure it passes**
+- [x] **Step 5: Run the suite and make sure it passes**
 
 Run: `sbt "core/testOnly wiggly.gin.core.domain.MovesSuite"`
 Expected: PASS, all three properties.
@@ -364,12 +368,12 @@ If "every move left out is refused" fails, read the counterexample before changi
 implementation. The generator reports the exact game, and the disagreement names the rule one side
 has wrong. Do not weaken the property to make it pass.
 
-- [ ] **Step 6: Run the whole suite**
+- [x] **Step 6: Run the whole suite**
 
 Run: `sbt test`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -396,7 +400,7 @@ anything is rendered.
   Task 5 calls `Update.apply` from `Main`. Task 4 supplies `Api.create`, `Api.join` and `Api.play`,
   which `Update` calls and which this task stubs.
 
-- [ ] **Step 1: Add the `ui` module to the build**
+- [x] **Step 1: Add the `ui` module to the build**
 
 In `build.sbt`, after the `protocol` block:
 
@@ -435,12 +439,12 @@ Add the import at the top of `build.sbt`:
 import org.scalajs.linker.interface.ModuleKind
 ```
 
-- [ ] **Step 2: Make sure the module compiles and its tests run on Node**
+- [x] **Step 2: Make sure the module compiles and its tests run on Node**
 
 Run: `sbt ui/compile`
 Expected: PASS. If the linker complains that Node is missing, install it. CI already has it.
 
-- [ ] **Step 3: Write the model and the messages**
+- [x] **Step 3: Write the model and the messages**
 
 Create `modules/ui/src/main/scala/wiggly/gin/ui/Model.scala`:
 
@@ -481,7 +485,7 @@ enum Msg {
 }
 ```
 
-- [ ] **Step 4: Write the failing update tests**
+- [x] **Step 4: Write the failing update tests**
 
 Create `modules/ui/src/test/scala/wiggly/gin/ui/UpdateSuite.scala`:
 
@@ -537,12 +541,12 @@ The claim worth testing is that a failure never costs the player their seat. A m
 back to `Start` on a transient error makes the player rejoin a game they already sit in. The
 server refuses that with `AlreadyFull`.
 
-- [ ] **Step 5: Run it and make sure it fails**
+- [x] **Step 5: Run it and make sure it fails**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.UpdateSuite"`
 Expected: FAIL to compile, with "Not found: Update".
 
-- [ ] **Step 6: Write the update function**
+- [x] **Step 6: Write the update function**
 
 Create `modules/ui/src/main/scala/wiggly/gin/ui/Update.scala`:
 
@@ -591,7 +595,7 @@ object Update {
 }
 ```
 
-- [ ] **Step 7: Add the stub `Api` so this compiles**
+- [x] **Step 7: Add the stub `Api` so this compiles**
 
 Task 4 fills these in. Create `modules/ui/src/main/scala/wiggly/gin/ui/Api.scala` with the
 signatures and a failing body, so that the update function is testable before the HTTP work lands:
@@ -611,17 +615,17 @@ object Api {
 }
 ```
 
-- [ ] **Step 8: Run the suite and make sure it passes**
+- [x] **Step 8: Run the suite and make sure it passes**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.UpdateSuite"`
 Expected: PASS, all six cases.
 
-- [ ] **Step 9: Run the gate**
+- [x] **Step 9: Run the gate**
 
 Run: `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test`
 Expected: PASS.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add -A
@@ -647,7 +651,7 @@ The commands that call the API, and the subscription over the event stream.
   `Seat.remember(seat: Credentials): Unit`, `Seat.recall(id: GameId): Option[Credentials]`,
   `Seat.gameIdIn(path: String): Option[String]`.
 
-- [ ] **Step 1: Write the commands**
+- [x] **Step 1: Write the commands**
 
 Replace the stub body of `Api.scala`:
 
@@ -709,7 +713,7 @@ If `Request.post` or `Body.json` do not match Tyrian 0.14.0's names, run
 `javap` rather than guessing. The shape above is the intent: a POST, a JSON body, a bearer header,
 and a decode that turns both success and failure into a `Msg`.
 
-- [ ] **Step 2: Write the event subscription**
+- [x] **Step 2: Write the event subscription**
 
 Create `modules/ui/src/main/scala/wiggly/gin/ui/Events.scala`:
 
@@ -766,7 +770,7 @@ make[F, A, R](id: String, acquire: (Either[Throwable, A] => Unit) => F[R], relea
 
 If the compiler disagrees, read the real one with `javap -cp <tyrian jar> 'tyrian.Sub$'`.
 
-- [ ] **Step 3: Write the failing seat test**
+- [x] **Step 3: Write the failing seat test**
 
 Create `modules/ui/src/test/scala/wiggly/gin/ui/SeatSuite.scala`:
 
@@ -801,12 +805,12 @@ object SeatSuite extends SimpleIOSuite {
 }
 ```
 
-- [ ] **Step 4: Run it and make sure it fails**
+- [x] **Step 4: Run it and make sure it fails**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.SeatSuite"`
 Expected: FAIL to compile, with "Not found: Seat".
 
-- [ ] **Step 5: Write the seat store**
+- [x] **Step 5: Write the seat store**
 
 Create `modules/ui/src/main/scala/wiggly/gin/ui/Seat.scala`:
 
@@ -845,7 +849,7 @@ object Seat {
 }
 ```
 
-- [ ] **Step 6: Run the suite and make sure it passes**
+- [x] **Step 6: Run the suite and make sure it passes**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.SeatSuite"`
 Expected: PASS, all four cases. Scala.js on Node provides `sessionStorage` through jsdom. If it
@@ -853,12 +857,12 @@ does not resolve, add `jsEnv := new org.scalajs.jsenv.jsdomnodejs.JSDOMNodeJSEnv
 settings and `addSbtPlugin("org.scala-js" % "sbt-jsdom-nodejs-env" % "1.1.0")` to
 `project/plugins.sbt`.
 
-- [ ] **Step 7: Run the whole suite and the gate**
+- [x] **Step 7: Run the whole suite and the gate**
 
 Run: `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A
@@ -878,7 +882,7 @@ git commit -m "Call the game API and watch its event stream from the browser"
 - Consumes: `Model`, `Msg`, `Moves.available`, `Update.apply`, `Events.watch`, `Seat`.
 - Produces: `View.apply(model: Model): Html[Msg]`, and a `Main` that Tyrian runs.
 
-- [ ] **Step 1: Write the failing view tests**
+- [x] **Step 1: Write the failing view tests**
 
 A `Html[Msg]` is a pure value, so a test reads its structure with no browser. Create
 `modules/ui/src/test/scala/wiggly/gin/ui/ViewSuite.scala`:
@@ -916,12 +920,12 @@ object ViewSuite extends SimpleIOSuite {
 }
 ```
 
-- [ ] **Step 2: Run it and make sure it fails**
+- [x] **Step 2: Run it and make sure it fails**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.ViewSuite"`
 Expected: FAIL to compile, with "Not found: View".
 
-- [ ] **Step 3: Write the screens**
+- [x] **Step 3: Write the screens**
 
 Create `modules/ui/src/main/scala/wiggly/gin/ui/View.scala`. The structure below is the contract
 for the file, and the helpers after it complete the screens:
@@ -1059,12 +1063,12 @@ renders `PlayerView.Over`, which carries a `MatchResult` and the round that ende
 
 Add `import cats.syntax.all.*` for `===`.
 
-- [ ] **Step 4: Run the view suite and make sure it passes**
+- [x] **Step 4: Run the view suite and make sure it passes**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.ViewSuite"`
 Expected: PASS, all three cases.
 
-- [ ] **Step 5: Write the entry point**
+- [x] **Step 5: Write the entry point**
 
 Create `modules/ui/src/main/scala/wiggly/gin/ui/Main.scala`:
 
@@ -1116,7 +1120,7 @@ object Main extends TyrianIOApp[Msg, Model] {
 
 If `GameId` does not resolve, add `import wiggly.gin.core.domain.GameId`.
 
-- [ ] **Step 6: Exclude the entry point and the view from coverage**
+- [x] **Step 6: Exclude the entry point and the view from coverage**
 
 In `build.sbt`, extend the existing exclusion:
 
@@ -1126,12 +1130,12 @@ ThisBuild / coverageExcludedFiles := ".*/server/Main;.*/server/HttpServer;.*/ui/
 
 The model, `Update` and `Moves.available` stay in the figure. They are where the logic is.
 
-- [ ] **Step 7: Run the gate**
+- [x] **Step 7: Run the gate**
 
 Run: `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A
@@ -1154,7 +1158,7 @@ git commit -m "Draw the screens a player plays a match through"
 - Consumes: `GinApi.httpApp`.
 - Produces: `WebRoutes.apply[F]: HttpRoutes[F]`.
 
-- [ ] **Step 1: Write the page and the styling**
+- [x] **Step 1: Write the page and the styling**
 
 Create `modules/server/src/main/resources/web/index.html`:
 
@@ -1214,7 +1218,7 @@ body {
 One column at any width, so a narrow screen needs no separate rule. The suit colour is the one
 piece of styling that carries meaning rather than decoration.
 
-- [ ] **Step 2: Write the failing route test**
+- [x] **Step 2: Write the failing route test**
 
 Create `modules/server/src/test/scala/wiggly/gin/server/adapter/http/WebRoutesSuite.scala`:
 
@@ -1267,12 +1271,12 @@ object GinApiWebSuite extends SimpleIOSuite {
 }
 ```
 
-- [ ] **Step 3: Run it and make sure it fails**
+- [x] **Step 3: Run it and make sure it fails**
 
 Run: `sbt "server/testOnly wiggly.gin.server.adapter.http.WebRoutesSuite"`
 Expected: FAIL to compile, with "Not found: WebRoutes".
 
-- [ ] **Step 4: Write the routes**
+- [x] **Step 4: Write the routes**
 
 Create `modules/server/src/main/scala/wiggly/gin/server/adapter/http/WebRoutes.scala`:
 
@@ -1311,7 +1315,7 @@ object WebRoutes {
 }
 ```
 
-- [ ] **Step 5: Mount it, after the health route**
+- [x] **Step 5: Mount it, after the health route**
 
 In `GinApi.scala`, change the router. The order carries two rules, so it is stated rather than
 left to whichever route matches first:
@@ -1335,7 +1339,7 @@ there too.
 static routes are inside `jsonErrors` rather than after it, because a route added after it never
 runs.
 
-- [ ] **Step 6: Wire the linker output into the server's resources**
+- [x] **Step 6: Wire the linker output into the server's resources**
 
 In `build.sbt`, add to the `server` settings:
 
@@ -1354,18 +1358,18 @@ In `build.sbt`, add to the `server` settings:
 `IO` here is `sbt.io.IO`, not `cats.effect.IO`. The sbt file has no cats-effect import, so there is
 no clash.
 
-- [ ] **Step 7: Run the suites and make sure they pass**
+- [x] **Step 7: Run the suites and make sure they pass**
 
 Run: `sbt "server/testOnly wiggly.gin.server.adapter.http.*"`
 Expected: PASS. `GameRoutesSuite` and `RedactionSuite` must still pass unchanged: the new routes
 sit beside the API rather than in front of it.
 
-- [ ] **Step 8: Run the gate**
+- [x] **Step 8: Run the gate**
 
 Run: `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test`
 Expected: PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add -A
@@ -1383,7 +1387,7 @@ The checks a machine cannot make for you, and the documents.
 - Modify: `docs/DESIGN.md`
 - Modify: `.github/workflows/ci.yml`
 
-- [ ] **Step 1: Build the image and play a game in it**
+- [x] **Step 1: Build the image and play a game in it**
 
 ```bash
 sbt server/Docker/publishLocal
@@ -1404,7 +1408,7 @@ Make sure that each of these holds, and fix what does not:
 | A round ending deals the next one | The game keeps no finished round. |
 | The match ends at 100 and says who won | The ledger reaches the browser. |
 
-- [ ] **Step 2: Make sure the page is read from the environment, not baked in**
+- [x] **Step 2: Make sure the page is read from the environment, not baked in**
 
 ```bash
 docker run --rm -e GIN_HTTP_PORT=9090 -p 9090:9090 wiggly-gin:latest
@@ -1413,7 +1417,7 @@ curl -s localhost:9090/health
 
 Expected: the health route answers on 9090, and the page loads there too.
 
-- [ ] **Step 3: Add the UI to the pipeline's smoke test**
+- [x] **Step 3: Add the UI to the pipeline's smoke test**
 
 In `.github/workflows/ci.yml`, the step that starts the image already waits for `/health`. Add one
 line to it that makes sure the page is in the image:
@@ -1424,7 +1428,7 @@ line to it that makes sure the page is in the image:
 
 A `/health` that answers proves the server started. This proves the resource generator ran.
 
-- [ ] **Step 4: Update the documents**
+- [x] **Step 4: Update the documents**
 
 `README.md` gains the `protocol` and `ui` modules in its table and its tree. It also gains a line
 on opening the UI in a browser, and a note that Scala.js suites run on Node.
@@ -1437,7 +1441,7 @@ work.
 `docs/SPEC-WEB-UI.md` gains a note wherever the code came out different from it, in the style
 [`docs/DESIGN.md`](DESIGN.md) already uses.
 
-- [ ] **Step 5: Run the gate and the coverage floors**
+- [x] **Step 5: Run the gate and the coverage floors**
 
 ```bash
 SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test
@@ -1447,7 +1451,7 @@ sbt coverageAll
 Expected: both PASS. If the coverage floor trips, the fix is a test for the model or for
 `Moves.available`, not a wider exclusion.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A
