@@ -47,9 +47,9 @@ lazy val weaverVersion     = "0.13.0"
 // Tests are weaver suites: property-based by default, effectful without ceremony.
 lazy val testSettings = Seq(
   libraryDependencies ++= Seq(
-    "org.typelevel"  %% "weaver-cats"       % weaverVersion     % Test,
-    "org.typelevel"  %% "weaver-scalacheck" % weaverVersion     % Test,
-    "org.scalacheck" %% "scalacheck"        % scalaCheckVersion % Test
+    "org.typelevel"  %%% "weaver-cats"       % weaverVersion     % Test,
+    "org.typelevel"  %%% "weaver-scalacheck" % weaverVersion     % Test,
+    "org.scalacheck" %%% "scalacheck"        % scalaCheckVersion % Test
   ),
   testFrameworks += new TestFramework("weaver.framework.CatsEffect")
 )
@@ -58,13 +58,14 @@ lazy val commonSettings = testSettings
 
 lazy val root = project
   .in(file("."))
-  .aggregate(core, server)
+  .aggregate(core.jvm, core.js, protocol.jvm, protocol.js, server)
   .settings(
     name           := "wiggly-gin",
     publish / skip := true
   )
 
-lazy val core = project
+lazy val core = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
   .in(file("modules/core"))
   .settings(commonSettings)
   .settings(
@@ -72,17 +73,29 @@ lazy val core = project
     libraryDependencies ++= Seq(
       // The domain is pure and needs only cats-core. cats-effect is here for the ports, and
       // fs2 for the one port that hands back a stream of a game's states.
-      "org.typelevel" %% "cats-core"   % catsVersion,
-      "org.typelevel" %% "cats-effect" % catsEffectVersion,
-      "co.fs2"        %% "fs2-core"    % fs2Version
+      "org.typelevel" %%% "cats-core"   % catsVersion,
+      "org.typelevel" %%% "cats-effect" % catsEffectVersion,
+      "co.fs2"        %%% "fs2-core"    % fs2Version
     )
+  )
+
+// The wire format. It sits outside core so that the domain keeps no JSON dependency, and outside
+// server so that the browser speaks the same protocol from the same derived codec.
+lazy val protocol = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("modules/protocol"))
+  .dependsOn(core % "compile->compile;test->test")
+  .settings(commonSettings)
+  .settings(
+    name                               := "wiggly-gin-protocol",
+    libraryDependencies += "io.circe" %%% "circe-core" % circeVersion
   )
 
 // Driving adapter: exposes the game over HTTP. Depends on core, never the other way round.
 // The test->test edge shares core's generators with this module's tests; see README.
 lazy val server = project
   .in(file("modules/server"))
-  .dependsOn(core % "compile->compile;test->test")
+  .dependsOn(protocol.jvm % "compile->compile;test->test")
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .settings(commonSettings)
   .settings(

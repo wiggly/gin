@@ -1,4 +1,4 @@
-package wiggly.gin.server.adapter.http
+package wiggly.gin.protocol
 
 import io.circe.syntax.*
 import io.circe.{Decoder, DecodingFailure, Encoder, Json, JsonObject}

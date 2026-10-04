@@ -1,4 +1,4 @@
-package wiggly.gin.server.adapter.http
+package wiggly.gin.protocol
 
 import cats.implicits.*
 import io.circe.Json
