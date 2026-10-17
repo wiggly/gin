@@ -1,6 +1,6 @@
 package wiggly.gin.ui
 
-import wiggly.gin.core.domain.{Move, PlayerView}
+import wiggly.gin.core.domain.{Card, Move, PlayerView}
 import wiggly.gin.core.port.Credentials
 
 /** What the person did, and what came back.
@@ -16,4 +16,13 @@ enum Msg {
   case Took(credentials: Credentials)
   case Saw(view: PlayerView)
   case Failed(reason: String)
+  case Toggle(card: Card)
+  case Sort(by: Sorting)
+  case Lift(card: Card)
+  case Drop(before: Option[Card])
+
+  /** A drop target has to cancel `dragover`, and a Tyrian handler has to return a message to do
+    * it. This is that message, and nothing handles it.
+    */
+  case Hover
 }

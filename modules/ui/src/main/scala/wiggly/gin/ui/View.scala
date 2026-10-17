@@ -15,9 +15,10 @@ object View {
 
   def apply(model: Model): Html[Msg] = {
     model match {
-      case Model.Start(joining, error)  => start(joining, error)
-      case Model.Connecting(_)          => div(cls := "waiting")(text("Taking your seat..."))
-      case Model.Seated(_, view, error) => seated(view, error)
+      case Model.Start(joining, error)      => start(joining, error)
+      case Model.Connecting(_)              => div(cls := "waiting")(text("Taking your seat..."))
+      case Model.Seated(_, view, error)     => seated(view, error)
+      case Model.Playing(_, view, _, error) => table(view, error)
     }
   }
 
@@ -36,10 +37,12 @@ object View {
     )
   }
 
-  private def seated(view: PlayerView, error: Option[String]): Html[Msg] = {
+  private def seated(
+      view: PlayerView.AwaitingOpponent | PlayerView.Over,
+      error: Option[String]
+  ): Html[Msg] = {
     view match {
       case waiting: PlayerView.AwaitingOpponent => awaiting(waiting, error)
-      case playing: PlayerView.InPlay           => table(playing, error)
       case over: PlayerView.Over                => finished(over)
     }
   }

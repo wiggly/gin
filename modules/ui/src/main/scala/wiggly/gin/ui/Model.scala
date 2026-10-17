@@ -5,8 +5,9 @@ import wiggly.gin.core.port.Credentials
 
 /** What the browser holds.
   *
-  * `Seated` keeps the view exactly as the server sent it. The server owns the redaction, and a
-  * client that re-models a view is a second author of it.
+  * Every view is kept exactly as the server sent it. The server owns the redaction, and a client
+  * that re-models a view is a second author of it. The one thing the browser adds is the layout of
+  * a hand, and only a round in play has a hand, so only `Playing` carries one.
   */
 enum Model {
 
@@ -17,5 +18,16 @@ enum Model {
     */
   case Connecting(credentials: Credentials)
 
-  case Seated(credentials: Credentials, view: PlayerView, error: Option[String])
+  case Seated(
+      credentials: Credentials,
+      view: PlayerView.AwaitingOpponent | PlayerView.Over,
+      error: Option[String]
+  )
+
+  case Playing(
+      credentials: Credentials,
+      view: PlayerView.InPlay,
+      holding: Holding,
+      error: Option[String]
+  )
 }

@@ -8,12 +8,12 @@ object ViewSuite extends SimpleIOSuite {
 
   private val seat = Credentials(GameId("g1"), Player.One, Token("t1"))
 
-  private val waiting: PlayerView = PlayerView.AwaitingOpponent(GameId("g1"), Player.One)
+  private val waiting = new PlayerView.AwaitingOpponent(GameId("g1"), Player.One)
 
   pureTest("the start screen offers both ways in") {
     val rendered = render(Model.Start("", None))
 
-    expect(rendered.contains("Create a game")) and expect(rendered.contains("Join"))
+    expect(rendered.contains("Create a game")).and(expect(rendered.contains("Join")))
   }
 
   pureTest("the waiting screen shows the game to share") {

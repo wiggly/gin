@@ -43,9 +43,10 @@ object Main extends TyrianIOApp[Msg, Model] {
 
   def subscriptions(model: Model): Sub[IO, Msg] = {
     model match {
-      case Model.Connecting(seat)   => Events.watch(seat)
-      case Model.Seated(seat, _, _) => Events.watch(seat)
-      case Model.Start(_, _)        => Sub.None
+      case Model.Connecting(seat)       => Events.watch(seat)
+      case Model.Seated(seat, _, _)     => Events.watch(seat)
+      case Model.Playing(seat, _, _, _) => Events.watch(seat)
+      case Model.Start(_, _)            => Sub.None
     }
   }
 }

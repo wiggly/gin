@@ -1,14 +1,41 @@
 package wiggly.gin.ui
 
+import cats.Show
+import org.scalacheck.Gen
 import weaver.SimpleIOSuite
-import wiggly.gin.core.domain.{GameId, Player, PlayerView, Token}
+import weaver.scalacheck.Checkers
+import wiggly.gin.core.domain.*
 import wiggly.gin.core.port.Credentials
+import wiggly.gin.gen.ViewGen
+import wiggly.gin.gen.ViewGen.held
 
-object UpdateSuite extends SimpleIOSuite {
+object UpdateSuite extends SimpleIOSuite with Checkers {
+
+  private given Show[PlayerView.InPlay] = Show.fromToString
+  private given Show[Msg]               = Show.fromToString
 
   private val seat = Credentials(GameId("g1"), Player.One, Token("t1"))
 
-  private val waiting: PlayerView = PlayerView.AwaitingOpponent(GameId("g1"), Player.One)
+  private val waiting = new PlayerView.AwaitingOpponent(GameId("g1"), Player.One)
+
+  private val handMessages: Gen[(PlayerView.InPlay, Card, Msg)] = for {
+    view <- Gen.oneOf(ViewGen.inPlay, ViewGen.discarding)
+    card <- Gen.oneOf(held(view))
+    msg  <- Gen.oneOf(
+      Msg.Toggle(card),
+      Msg.Sort(Sorting.ByRank),
+      Msg.Lift(card),
+      Msg.Drop(Some(card)),
+      Msg.Drop(None),
+      Msg.Hover
+    )
+  } yield (view, card, msg)
+
+  private def chosen(view: PlayerView.InPlay): Holding = {
+    val first = Moves.available(view).collectFirst { case Move.Discard(card) => card }
+
+    first.fold(Holding.of(view))(Holding.of(view).toggled(_, view))
+  }
 
   pureTest("taking a seat moves off the start screen") {
     val (model, _) = Update(Model.Start("", None), Msg.Took(seat))
@@ -38,5 +65,71 @@ object UpdateSuite extends SimpleIOSuite {
   pureTest("typing a game id is remembered") {
     val (model, _) = Update(Model.Start("", None), Msg.JoiningChanged("g2"))
     expect.same(Model.Start("g2", None), model)
+  }
+
+  test("a round in play seats the player at the table, in the server's order") {
+    forall(ViewGen.inPlay) { view =>
+      val (model, _) = Update(Model.Connecting(seat), Msg.Saw(view))
+      expect.same(Model.Playing(seat, view, Holding.of(view), None), model)
+    }
+  }
+
+  test("a round starting while the player waits moves them to the table") {
+    forall(ViewGen.inPlay) { view =>
+      val (model, _) = Update(Model.Seated(seat, waiting, None), Msg.Saw(view))
+      expect.same(Model.Playing(seat, view, Holding.of(view), None), model)
+    }
+  }
+
+  test("a later view keeps the order the player chose and clears the last error") {
+    forall(ViewGen.turn) { case (before, after) =>
+      val mine       = Holding.of(before).sorted(Sorting.ByRank, before)
+      val (model, _) = Update(Model.Playing(seat, before, mine, Some("stale")), Msg.Saw(after))
+      expect.same(Model.Playing(seat, after, mine.reconcile(after), None), model)
+    }
+  }
+
+  test("a hand message changes the holding and nothing else") {
+    forall(handMessages) { case (view, card, msg) =>
+      val holding  = Holding.of(view).lifted(card)
+      val expected = msg match {
+        case Msg.Toggle(chosen) => holding.toggled(chosen, view)
+        case Msg.Sort(by)       => holding.sorted(by, view)
+        case Msg.Lift(lifted)   => holding.lifted(lifted)
+        case Msg.Drop(before)   => holding.moved(before)
+        case _                  => holding
+      }
+      val (model, _) = Update(Model.Playing(seat, view, holding, Some("kept")), msg)
+
+      expect.same(Model.Playing(seat, view, expected, Some("kept")), model)
+    }
+  }
+
+  test("a hand message away from the table changes nothing") {
+    forall(handMessages) { case (_, _, msg) =>
+      val away =
+        List(Model.Start("g2", None), Model.Connecting(seat), Model.Seated(seat, waiting, None))
+
+      expect(away.forall(model => Update(model, msg)._1 == model))
+    }
+  }
+
+  test("a move keeps the holding and clears the last error") {
+    forall(ViewGen.discarding) { view =>
+      val holding    = chosen(view)
+      val move       = Moves.available(view).head
+      val (model, _) = Update(Model.Playing(seat, view, holding, Some("stale")), Msg.Play(move))
+
+      expect.same(Model.Playing(seat, view, holding, None), model)
+    }
+  }
+
+  test("a refused move keeps the selection") {
+    forall(ViewGen.discarding) { view =>
+      val holding    = chosen(view)
+      val (model, _) = Update(Model.Playing(seat, view, holding, None), Msg.Failed("nope"))
+
+      expect.same(Model.Playing(seat, view, holding, Some("nope")), model)
+    }
   }
 }
