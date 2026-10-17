@@ -22,12 +22,12 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
     view <- Gen.oneOf(ViewGen.inPlay, ViewGen.discarding)
     card <- Gen.oneOf(held(view))
     msg  <- Gen.oneOf(
-      Msg.Toggle(card),
-      Msg.Sort(Sorting.ByRank),
-      Msg.Lift(card),
-      Msg.Drop(Some(card)),
-      Msg.Drop(None),
-      Msg.Hover
+      Gen.const(Msg.Toggle(card)),
+      Gen.oneOf(Sorting.values.toList).map(Msg.Sort(_)),
+      Gen.const(Msg.Lift(card)),
+      Gen.const(Msg.Drop(Some(card))),
+      Gen.const(Msg.Drop(None)),
+      Gen.const(Msg.Hover)
     )
   } yield (view, card, msg)
 
@@ -86,6 +86,15 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
       val mine       = Holding.of(before).sorted(Sorting.ByRank, before)
       val (model, _) = Update(Model.Playing(seat, before, mine, Some("stale")), Msg.Saw(after))
       expect.same(Model.Playing(seat, after, mine.reconcile(after), None), model)
+    }
+  }
+
+  test("a round that is no longer in play moves the player off the table and drops the holding") {
+    forall(ViewGen.inPlay) { view =>
+      val playing    = Model.Playing(seat, view, Holding.of(view), Some("stale"))
+      val (model, _) = Update(playing, Msg.Saw(waiting))
+
+      expect.same(Model.Seated(seat, waiting, None), model)
     }
   }
 
