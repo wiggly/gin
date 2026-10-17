@@ -80,12 +80,15 @@ object View {
   }
 
   private def opponent(view: PlayerView.InPlay): Html[Msg] =
-    p(cls := "opponent")(text(s"The other player holds ${view.opponentSize} cards"))
+    div(cls := "opponent fan")(List.fill(view.opponentSize)(Cards.back[Msg]))
 
   private def pile(view: PlayerView.InPlay): Html[Msg] = {
-    div(cls := "pile")(
-      p(text(s"Stock ${view.stockSize}, pile ${view.discardSize}")),
-      view.upcard.fold(p(text("The pile is empty")))(up => div(cls := "upcard")(card(up)))
+    div(cls := "piles")(
+      div(cls := "stock")(Cards.back, p(text(s"Stock ${view.stockSize}"))),
+      div(cls := "upcard")(
+        view.upcard.fold(p(cls := "empty-pile")(text("The pile is empty")))(Cards.face),
+        p(text(s"Pile ${view.discardSize}"))
+      )
     )
   }
 
@@ -95,9 +98,11 @@ object View {
   private def hand(view: PlayerView.InPlay): Html[Msg] = {
     div(cls := "hand")(
       div(cls := "melds")(
-        view.arrangement.melds.map(meld => div(cls := "meld")(meld.cards.toList.map(card)))
+        view.arrangement.melds.map(meld =>
+          div(cls := "fan")(meld.cards.toList.map(Cards.face[Msg]))
+        )
       ),
-      div(cls := "deadwood")(view.arrangement.deadwood.map(card)),
+      div(cls := "fan")(view.arrangement.deadwood.map(Cards.face[Msg])),
       p(cls := "count")(text(s"Deadwood ${view.arrangement.deadwoodValue}"))
     )
   }
@@ -134,21 +139,10 @@ object View {
       case Move.DrawStock   => "Draw from the stock"
       case Move.DrawDiscard => "Take the upcard"
       case Move.Pass        => "Pass"
-      case Move.Discard(c)  => s"Discard ${name(c)}"
-      case Move.Knock(c)    => s"Knock, discarding ${name(c)}"
+      case Move.Discard(c)  => s"Discard ${Cards.short(c)}"
+      case Move.Knock(c)    => s"Knock with ${Cards.short(c)}"
     }
   }
-
-  private def card(value: Card): Html[Msg] = {
-    val colour = value.suit match {
-      case Suit.Hearts | Suit.Diamonds => "red"
-      case Suit.Clubs | Suit.Spades    => "black"
-    }
-
-    span(cls := s"card $colour")(text(name(value)))
-  }
-
-  private def name(value: Card): String = s"${value.rank} of ${value.suit}"
 
   private def who(player: Player): String = s"Player ${player.toString.toLowerCase}"
 

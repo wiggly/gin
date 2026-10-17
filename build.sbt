@@ -19,7 +19,7 @@ ThisBuild / tpolecatDevModeOptions += ScalacOptions.noIndent
 // drives them, so counting them would only depress the figure.
 // The patterns carry no `.scala`: the compiler strips the extension before matching, and the whole
 // path has to match, so a pattern ending in `.scala` silently excludes nothing.
-ThisBuild / coverageExcludedFiles := ".*/server/Main;.*/server/HttpServer;.*/ui/Main;.*/ui/View"
+ThisBuild / coverageExcludedFiles := ".*/server/Main;.*/server/HttpServer;.*/ui/Main;.*/ui/View;.*/ui/Cards"
 // Floors sit a few points under the measured aggregate (87.83% statement, 57.14% branch) so that
 // ordinary churn does not trip them. They bite on `coverageAggregate`, not on a single module.
 ThisBuild / coverageFailOnMinimum      := true
