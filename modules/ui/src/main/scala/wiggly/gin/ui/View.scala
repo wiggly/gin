@@ -1,6 +1,8 @@
 package wiggly.gin.ui
 
 import cats.syntax.all.*
+import org.scalajs.dom
+import tyrian.Attr
 import tyrian.Html
 import tyrian.Html.*
 import wiggly.gin.core.domain.*
@@ -107,14 +109,16 @@ object View {
     }.toMap
 
     div(cls := "hand")(
-      div(cls := "fan")(holding.order.map { card =>
-        slot(
-          card,
-          tints.get(card),
-          available.contains(Move.Discard(card)),
-          holding.selected.contains(card)
-        )
-      }),
+      div(cls := "fan")(
+        holding.order.map { card =>
+          slot(
+            card,
+            tints.get(card),
+            available.contains(Move.Discard(card)),
+            holding.selected.contains(card)
+          )
+        } :+ div(cls := "end", onDragOver(Msg.Hover), onDrop(Msg.Drop(None)))()
+      ),
       div(cls := "sorting")(
         Sorting.values.toList.map(by => button(onClick(Msg.Sort(by)))(text(sortLabel(by))))
       ),
@@ -130,7 +134,28 @@ object View {
   ): Html[Msg] = {
     val classes = "slot" :: tint.toList ++ Option.when(selected)("selected").toList
 
-    div(cls := classes.mkString(" "))(pick(selectable, Msg.Toggle(card))(Cards.face(card)))
+    div(
+      cls := classes.mkString(" "),
+      attribute("draggable", "true"),
+      lift(card),
+      onDragOver(Msg.Hover),
+      onDrop(Msg.Drop(Some(card)))
+    )(pick(selectable, Msg.Toggle(card))(Cards.face(card)))
+  }
+
+  /** Tyrian cancels the default of every event unless told not to, and cancelling `dragstart`
+    * cancels the drag. Firefox also starts a drag only once something is on the transfer.
+    */
+  private def lift(card: Card): Attr[Msg] = {
+    tyrian
+      .Event(
+        "dragstart",
+        (event: dom.DragEvent) => {
+          event.dataTransfer.setData("text/plain", Cards.name(card))
+          Msg.Lift(card)
+        }
+      )
+      .noPreventDefault
   }
 
   /** A discard names the card it acts on, so in a discard phase the buttons wait for one. */

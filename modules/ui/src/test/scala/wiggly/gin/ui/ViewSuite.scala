@@ -158,6 +158,32 @@ object ViewSuite extends SimpleIOSuite with Checkers {
     }
   }
 
+  test("every card in the hand is a drop target, and so is the end of the row") {
+    forall(ViewGen.inPlay) { view =>
+      val drops = Handlers.sent(View(playing(view)), "drop")
+
+      expect.same(held(view).map(card => Msg.Drop(Some(card))) :+ Msg.Drop(None), drops)
+    }
+  }
+
+  test("every drop target cancels dragover, or the browser would refuse the drop") {
+    forall(ViewGen.inPlay) { view =>
+      val html = View(playing(view))
+
+      expect.same(Handlers.count(html, "drop"), Handlers.count(html, "dragover"))
+    }
+  }
+
+  test("every card in the hand can be lifted") {
+    forall(ViewGen.inPlay) { view =>
+      val html = View(playing(view))
+
+      expect
+        .same(held(view).size, Handlers.count(html, "dragstart"))
+        .and(expect.same(held(view).size, """draggable="true"""".r.findAllIn(html.render).size))
+    }
+  }
+
   private def playing(view: PlayerView.InPlay): Model =
     Model.Playing(seat, view, Holding.of(view), None)
 
