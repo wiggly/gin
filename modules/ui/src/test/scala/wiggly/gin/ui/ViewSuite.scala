@@ -1,6 +1,7 @@
 package wiggly.gin.ui
 
 import cats.Show
+import cats.syntax.all.*
 import org.scalacheck.Gen
 import tyrian.*
 import weaver.SimpleIOSuite
@@ -63,6 +64,21 @@ object ViewSuite extends SimpleIOSuite with Checkers {
   private def chosen(view: PlayerView.InPlay): Option[Holding] = {
     Moves.available(view).collectFirst { case Move.Discard(card) => card }.map { card =>
       Holding.of(view).toggled(card, view)
+    }
+  }
+
+  test("every move a click sends is one the rules offer, and Pass is there exactly when offered") {
+    forall(views) { view =>
+      val available = Moves.available(view)
+      val models    = playing(view) :: chosen(view).map(Model.Playing(seat, view, _, None)).toList
+
+      models.foldMap { model =>
+        val sent = clicks(model)
+
+        expect(sent.collect { case Msg.Play(move) => move }.forall(available.contains)).and(
+          expect.same(available.contains(Move.Pass), sent.contains(Msg.Play(Move.Pass)))
+        )
+      }
     }
   }
 
