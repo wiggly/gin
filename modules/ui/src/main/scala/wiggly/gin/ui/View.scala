@@ -15,10 +15,10 @@ object View {
 
   def apply(model: Model): Html[Msg] = {
     model match {
-      case Model.Start(joining, error)      => start(joining, error)
-      case Model.Connecting(_)              => div(cls := "waiting")(text("Taking your seat..."))
-      case Model.Seated(_, view, error)     => seated(view, error)
-      case Model.Playing(_, view, _, error) => table(view, error)
+      case Model.Start(joining, error)  => start(joining, error)
+      case Model.Connecting(_)          => div(cls := "waiting")(text("Taking your seat..."))
+      case Model.Seated(_, view, error) => seated(view, error)
+      case Model.Playing(_, view, holding, error) => table(view, holding, error)
     }
   }
 
@@ -57,13 +57,15 @@ object View {
     )
   }
 
-  private def table(view: PlayerView.InPlay, error: Option[String]): Html[Msg] = {
+  private def table(view: PlayerView.InPlay, holding: Holding, error: Option[String]): Html[Msg] = {
+    val available = Moves.available(view)
+
     div(cls := "table")(
       scoreboard(view),
       opponent(view),
-      pile(view),
-      hand(view),
-      moves(view),
+      piles(view, available),
+      hand(view, holding, available),
+      moves(holding, available),
       view.previous.fold(empty)(lastRound),
       problem(error)
     )
@@ -82,36 +84,87 @@ object View {
   private def opponent(view: PlayerView.InPlay): Html[Msg] =
     div(cls := "opponent fan")(List.fill(view.opponentSize)(Cards.back[Msg]))
 
-  private def pile(view: PlayerView.InPlay): Html[Msg] = {
+  private def piles(view: PlayerView.InPlay, available: List[Move]): Html[Msg] = {
+    val upcard = view.upcard.fold(p(cls := "empty-pile")(text("The pile is empty"))) { up =>
+      pick(available.contains(Move.DrawDiscard), Msg.Play(Move.DrawDiscard))(Cards.face(up))
+    }
+
     div(cls := "piles")(
-      div(cls := "stock")(Cards.back, p(text(s"Stock ${view.stockSize}"))),
-      div(cls := "upcard")(
-        view.upcard.fold(p(cls := "empty-pile")(text("The pile is empty")))(Cards.face),
-        p(text(s"Pile ${view.discardSize}"))
-      )
+      div(cls := "stock")(
+        pick(available.contains(Move.DrawStock), Msg.Play(Move.DrawStock))(Cards.back),
+        p(text(s"Stock ${view.stockSize}"))
+      ),
+      div(cls := "upcard")(upcard, p(text(s"Pile ${view.discardSize}")))
     )
   }
 
-  /** A hand reads as its arrangement: each meld on its own row, the deadwood last. That is the
-    * grouping the player needs, because it is the one their score is counted from.
+  /** The order is the player's. Which meld a card is in is the server's, so it is drawn as a tint
+    * that travels with the card rather than as a position the player could break up.
     */
-  private def hand(view: PlayerView.InPlay): Html[Msg] = {
+  private def hand(view: PlayerView.InPlay, holding: Holding, available: List[Move]): Html[Msg] = {
+    val tints = view.arrangement.melds.zipWithIndex.flatMap { case (meld, i) =>
+      meld.cards.toList.map(_ -> s"meld-$i")
+    }.toMap
+
     div(cls := "hand")(
-      div(cls := "melds")(
-        view.arrangement.melds.map(meld =>
-          div(cls := "fan")(meld.cards.toList.map(Cards.face[Msg]))
+      div(cls := "fan")(holding.order.map { card =>
+        slot(
+          card,
+          tints.get(card),
+          available.contains(Move.Discard(card)),
+          holding.selected.contains(card)
         )
+      }),
+      div(cls := "sorting")(
+        Sorting.values.toList.map(by => button(onClick(Msg.Sort(by)))(text(sortLabel(by))))
       ),
-      div(cls := "fan")(view.arrangement.deadwood.map(Cards.face[Msg])),
       p(cls := "count")(text(s"Deadwood ${view.arrangement.deadwoodValue}"))
     )
   }
 
-  /** Every button is a move the rules would accept, because both sides read the same function. */
-  private def moves(view: PlayerView.InPlay): Html[Msg] =
-    div(cls := "moves")(
-      Moves.available(view).map(move => button(onClick(Msg.Play(move)))(text(label(move))))
-    )
+  private def slot(
+      card: Card,
+      tint: Option[String],
+      selectable: Boolean,
+      selected: Boolean
+  ): Html[Msg] = {
+    val classes = "slot" :: tint.toList ++ Option.when(selected)("selected").toList
+
+    div(cls := classes.mkString(" "))(pick(selectable, Msg.Toggle(card))(Cards.face(card)))
+  }
+
+  /** A discard names the card it acts on, so in a discard phase the buttons wait for one. */
+  private def moves(holding: Holding, available: List[Move]): Html[Msg] = {
+    val discarding = available.exists {
+      case Move.Discard(_) => true
+      case _               => false
+    }
+
+    val buttons =
+      if (discarding) {
+        holding.selected.fold(List(button(disabled(true))(text("Select a card to discard")))) {
+          card => List(Move.Discard(card), Move.Knock(card)).filter(available.contains).map(play)
+        }
+      } else {
+        available.filter(_ === Move.Pass).map(play)
+      }
+
+    div(cls := "moves")(buttons)
+  }
+
+  private def play(move: Move): Html[Msg] = button(onClick(Msg.Play(move)))(text(label(move)))
+
+  /** Something a player can click is a button, so that the keyboard reaches it as well. */
+  private def pick(enabled: Boolean, msg: Msg)(art: Html[Msg]): Html[Msg] =
+    if (enabled) button(cls := "pick", onClick(msg))(art) else art
+
+  private def sortLabel(by: Sorting): String = {
+    by match {
+      case Sorting.ByMelds => "By melds"
+      case Sorting.BySuit  => "By suit"
+      case Sorting.ByRank  => "By rank"
+    }
+  }
 
   private def lastRound(result: RoundResult): Html[Msg] = {
     val said = result.score match {

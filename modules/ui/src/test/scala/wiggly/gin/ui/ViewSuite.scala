@@ -1,10 +1,11 @@
 package wiggly.gin.ui
 
 import cats.Show
+import org.scalacheck.Gen
 import tyrian.*
 import weaver.SimpleIOSuite
 import weaver.scalacheck.Checkers
-import wiggly.gin.core.domain.{GameId, Player, PlayerView, Token}
+import wiggly.gin.core.domain.*
 import wiggly.gin.core.port.Credentials
 import wiggly.gin.gen.ViewGen
 import wiggly.gin.gen.ViewGen.held
@@ -52,6 +53,89 @@ object ViewSuite extends SimpleIOSuite with Checkers {
       val backs = """aria-label="a face-down card"""".r.findAllIn(drawn(playing(view))).size
 
       expect.same(view.opponentSize + 1, backs)
+    }
+  }
+
+  private val views: Gen[PlayerView.InPlay] = Gen.oneOf(ViewGen.inPlay, ViewGen.discarding)
+
+  private def clicks(model: Model): List[Msg] = Handlers.sent(View(model), "click")
+
+  private def chosen(view: PlayerView.InPlay): Option[Holding] = {
+    Moves.available(view).collectFirst { case Move.Discard(card) => card }.map { card =>
+      Holding.of(view).toggled(card, view)
+    }
+  }
+
+  test("a pile can be clicked exactly when drawing from it is a move") {
+    forall(views) { view =>
+      val sent      = clicks(playing(view))
+      val available = Moves.available(view)
+
+      expect
+        .same(available.contains(Move.DrawStock), sent.contains(Msg.Play(Move.DrawStock)))
+        .and(
+          expect.same(
+            available.contains(Move.DrawDiscard),
+            sent.contains(Msg.Play(Move.DrawDiscard))
+          )
+        )
+    }
+  }
+
+  test("a card in the hand can be clicked exactly when it is a legal discard") {
+    forall(views) { view =>
+      val toggles = clicks(playing(view)).collect { case Msg.Toggle(card) => card }.toSet
+      val legal   = Moves.available(view).collect { case Move.Discard(card) => card }.toSet
+
+      expect.same(legal, toggles)
+    }
+  }
+
+  test("with a card selected, the buttons are its discard and, when it is legal, its knock") {
+    forall(ViewGen.discarding) { view =>
+      chosen(view) match {
+        case None          => success
+        case Some(holding) => {
+          val card   = holding.selected.toList
+          val acting = clicks(Model.Playing(seat, view, holding, None)).collect {
+            case Msg.Play(move @ (Move.Discard(_) | Move.Knock(_))) => move
+          }
+          val expected = card
+            .flatMap(c => List(Move.Discard(c), Move.Knock(c)))
+            .filter(Moves.available(view).contains)
+
+          expect.same(expected, acting)
+        }
+      }
+    }
+  }
+
+  test("with no card selected, a discard waits for one") {
+    forall(ViewGen.discarding) { view =>
+      val model  = playing(view)
+      val acting = clicks(model).collect {
+        case Msg.Play(move @ (Move.Discard(_) | Move.Knock(_))) => move
+      }
+
+      expect(drawn(model).contains("Select a card to discard")).and(expect(acting.isEmpty))
+    }
+  }
+
+  test("each meld has its own tint, and deadwood has none") {
+    forall(ViewGen.inPlay) { view =>
+      val rendered = drawn(playing(view))
+      val tinted   = (0 until 3).toList.map(i => s"meld-$i".r.findAllIn(rendered).size)
+      val melds    = view.arrangement.melds.map(_.cards.size)
+
+      expect.same(melds ++ List.fill(3 - melds.size)(0), tinted)
+    }
+  }
+
+  test("the sort buttons are always there") {
+    forall(ViewGen.inPlay) { view =>
+      val sorts = clicks(playing(view)).collect { case Msg.Sort(by) => by }
+
+      expect.same(Sorting.values.toList, sorts)
     }
   }
 
