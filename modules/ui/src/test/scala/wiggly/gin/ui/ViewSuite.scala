@@ -166,11 +166,22 @@ object ViewSuite extends SimpleIOSuite with Checkers {
     }
   }
 
-  test("every drop target cancels dragover, or the browser would refuse the drop") {
+  test("every drop target cancels dragover as well as drop, or the browser would refuse the drop") {
     forall(ViewGen.inPlay) { view =>
-      val html = View(playing(view))
+      val targets = Handlers.byElement(View(playing(view))).filter(_.exists(_.name == "drop"))
+      val cancels = targets.map { events =>
+        List("drop", "dragover").map(name => events.find(_.name == name).map(_.preventDefault))
+      }
 
-      expect.same(Handlers.count(html, "drop"), Handlers.count(html, "dragover"))
+      expect(targets.nonEmpty).and(expect(cancels.forall(_ == List(Some(true), Some(true)))))
+    }
+  }
+
+  test("no dragstart cancels its default, or the browser would cancel the drag") {
+    forall(ViewGen.inPlay) { view =>
+      val starts = Handlers.byElement(View(playing(view))).flatten.filter(_.name == "dragstart")
+
+      expect(starts.nonEmpty).and(expect(starts.forall(!_.preventDefault)))
     }
   }
 
