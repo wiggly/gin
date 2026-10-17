@@ -43,13 +43,34 @@ object ViewGen {
     move <- Gen.oneOf(Moves.available(viewOf(game, game.round.onTurn)))
     next <- GameGen.deck
   } yield {
-    val after = game.played(game.round.onTurn, move, next) match {
+    val later = after(game, move, next)
+
+    (viewOf(game, you), viewOf(later, you))
+  }
+
+  /** A discard or knock by the player who owes one, seen by that same player before and after. */
+  val discardTurn: Gen[(PlayerView.InPlay, PlayerView.InPlay)] = for {
+    game     <- GameGen.inPlay
+    drawDeck <- GameGen.deck
+    next     <- GameGen.deck
+    drawn = game.round.phase match {
+      case _: Phase.AwaitingDiscard => game
+      case _                        => drawFrom(game, drawDeck)
+    }
+    you = drawn.round.onTurn
+    move <- Gen.oneOf(Moves.available(viewOf(drawn, you)).filter {
+      case _: Move.Discard | _: Move.Knock => true
+      case _                               => false
+    })
+  } yield (viewOf(drawn, you), viewOf(after(drawn, move, next), you))
+
+  private def after(game: Game.InPlay, move: Move, next: Deck): Game.InPlay = {
+    game.played(game.round.onTurn, move, next) match {
       case Right(playing: Game.InPlay) => playing
       // The match ended, so there is no later round to see. The same view twice is still a turn.
-      case _ => game
+      case Right(_)    => game
+      case Left(fault) => sys.error(s"a legal move was refused: $move, $fault")
     }
-
-    (viewOf(game, you), viewOf(after, you))
   }
 
   private def drawFrom(game: Game.InPlay, next: Deck): Game.InPlay = {

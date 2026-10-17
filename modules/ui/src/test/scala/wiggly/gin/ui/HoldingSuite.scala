@@ -33,7 +33,7 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
       Gen.option(card).map(Op.Drop(_))
     )
 
-    Gen.listOf(op).map(view -> _)
+    Gen.choose(0, 12).flatMap(n => Gen.listOfN(n, op)).map(view -> _)
   }
 
   private val choices: Gen[(PlayerView.InPlay, Card)] =
@@ -56,6 +56,10 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
     }
   }
 
+  private def suitThenRank(card: Card): (Int, Int) = (card.suit.ordinal, card.rank.order)
+
+  private def rankThenSuit(card: Card): (Int, Int) = (card.rank.order, card.suit.ordinal)
+
   private def legal(view: PlayerView.InPlay)(card: Card): Boolean =
     Moves.available(view).contains(Move.Discard(card))
 
@@ -69,9 +73,10 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
     forall(ViewGen.inPlay) { view =>
       val holding = Holding.of(view)
 
-      expect.same(held(view), holding.order) and
-        expect(holding.selected.isEmpty) and
-        expect(holding.dragging.isEmpty)
+      expect
+        .same(held(view), holding.order)
+        .and(expect(holding.selected.isEmpty))
+        .and(expect(holding.dragging.isEmpty))
     }
   }
 
@@ -117,8 +122,9 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
       val next = mine.reconcile(after)
       val kept = mine.order.filter(held(after).contains)
 
-      expect.same(kept, next.order.take(kept.size)) and
-        expect(next.order.drop(kept.size).forall(card => !mine.order.contains(card)))
+      expect
+        .same(kept, next.order.take(kept.size))
+        .and(expect(next.order.drop(kept.size).forall(card => !mine.order.contains(card))))
     }
   }
 
@@ -131,8 +137,11 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
   }
 
   test("a new view drops a selection that is no longer legal") {
-    forall(ViewGen.turn) { case (before, after) =>
-      expect(chosen(before).reconcile(after).selected.forall(legal(after)))
+    forall(ViewGen.discardTurn) { case (before, after) =>
+      val holding = chosen(before)
+
+      expect(holding.selected.isDefined)
+        .and(expect(holding.reconcile(after).selected.forall(legal(after))))
     }
   }
 
@@ -169,7 +178,7 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
     forall(choices) { case (view, card) =>
       val moved = Holding.of(view).lifted(card).moved(None)
 
-      expect.same(Some(card), moved.order.lastOption) and expect(moved.dragging.isEmpty)
+      expect.same(Some(card), moved.order.lastOption).and(expect(moved.dragging.isEmpty))
     }
   }
 
@@ -187,17 +196,26 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
 
   test("sorting by suit groups each suit, low to high") {
     forall(runs) { case (view, run) =>
-      val holding = played(view, run)
+      val keys = played(view, run).sorted(Sorting.BySuit, view).order.map(suitThenRank)
 
-      expect.same(holding.order.sorted, holding.sorted(Sorting.BySuit, view).order)
+      expect.same(keys.sorted, keys)
     }
   }
 
-  test("sorting by rank puts the ranks in order") {
+  test("sorting by rank puts the ranks in order, suits breaking ties") {
     forall(runs) { case (view, run) =>
-      val ranks = played(view, run).sorted(Sorting.ByRank, view).order.map(_.rank.order)
+      val keys = played(view, run).sorted(Sorting.ByRank, view).order.map(rankThenSuit)
 
-      expect.same(ranks.sorted, ranks)
+      expect.same(keys.sorted, keys)
+    }
+  }
+
+  test("a discarding view always offers a discard") {
+    forall(ViewGen.discarding) { view =>
+      expect(Moves.available(view).exists {
+        case _: Move.Discard => true
+        case _               => false
+      })
     }
   }
 }
