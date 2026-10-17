@@ -18,6 +18,10 @@ weaver-scalacheck, sbt 1.13.0. No new dependencies.
 
 **Spec:** [`docs/SPEC-CARD-TABLE.md`](SPEC-CARD-TABLE.md)
 
+**Status:** Implemented on branch `web-ui`. Four steps are not done, because they need a person at a
+browser: Task 3 Step 8, Task 4 Step 6, Task 5 Step 5 and the browser play-through in Task 6 Step 1.
+The image was built and started, and `/health`, `/play`, `/gin.css` and `/main.js` answered 200.
+
 ## Global Constraints
 
 - Scala 3.9.0, sbt 1.13.0, JDK 25. Tyrian 0.14.0. Add no library.
@@ -101,7 +105,7 @@ A pure type and its properties. Nothing draws it yet.
   - `Holding#lifted(card: Card): Holding`
   - `Holding#moved(before: Option[Card]): Holding`
 
-- [ ] **Step 1: Write the view generators**
+- [x] **Step 1: Write the view generators**
 
 Create `modules/core/src/test/scala/wiggly/gin/gen/ViewGen.scala`:
 
@@ -174,7 +178,7 @@ object ViewGen {
 }
 ```
 
-- [ ] **Step 2: Write the failing `Holding` properties**
+- [x] **Step 2: Write the failing `Holding` properties**
 
 Create `modules/ui/src/test/scala/wiggly/gin/ui/HoldingSuite.scala`:
 
@@ -384,13 +388,13 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
 }
 ```
 
-- [ ] **Step 3: Run it and make sure it fails**
+- [x] **Step 3: Run it and make sure it fails**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.HoldingSuite"`
 
 Expected: a compile failure, `Not found: Holding` and `Not found: Sorting`.
 
-- [ ] **Step 4: Write `Holding`**
+- [x] **Step 4: Write `Holding`**
 
 Create `modules/ui/src/main/scala/wiggly/gin/ui/Holding.scala`:
 
@@ -482,7 +486,7 @@ object Holding {
 `cardsIn` repeats `ViewGen.held` on purpose. One is the production rule, and the other is what the
 tests check it against.
 
-- [ ] **Step 5: Run the suite and make sure it passes**
+- [x] **Step 5: Run the suite and make sure it passes**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.HoldingSuite"`
 
@@ -490,13 +494,13 @@ Expected: every test passes. If `ViewGen.discarding` fails with "drawing did not
 owed", print the game it names. That error means that a draw ended the round, and the generator
 needs to skip that game rather than draw from it.
 
-- [ ] **Step 6: Run the gate**
+- [x] **Step 6: Run the gate**
 
 Run: `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test`
 
 Expected: green. If `scalafmtCheckAll` fails, run `sbt scalafmtAll` and run the gate again.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add modules/core/src/test/scala/wiggly/gin/gen/ViewGen.scala \
@@ -531,7 +535,7 @@ exactly as they did.
   - `View.table(view: PlayerView.InPlay, error: Option[String])`, still private, still drawn as
     text. Task 3 and Task 4 change it.
 
-- [ ] **Step 1: Write the failing update tests**
+- [x] **Step 1: Write the failing update tests**
 
 Replace `modules/ui/src/test/scala/wiggly/gin/ui/UpdateSuite.scala` with:
 
@@ -679,14 +683,14 @@ it fits the narrowed `Seated`:
   private val waiting = PlayerView.AwaitingOpponent(GameId("g1"), Player.One)
 ```
 
-- [ ] **Step 2: Run it and make sure it fails**
+- [x] **Step 2: Run it and make sure it fails**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.UpdateSuite"`
 
 Expected: a compile failure, `Playing is not a member of object Model` and `Toggle is not a member
 of object Msg`.
 
-- [ ] **Step 3: Write the model and the messages**
+- [x] **Step 3: Write the model and the messages**
 
 Replace `modules/ui/src/main/scala/wiggly/gin/ui/Model.scala` with:
 
@@ -759,7 +763,7 @@ enum Msg {
 }
 ```
 
-- [ ] **Step 4: Write the update function**
+- [x] **Step 4: Write the update function**
 
 Replace `modules/ui/src/main/scala/wiggly/gin/ui/Update.scala` with:
 
@@ -842,7 +846,7 @@ object Update {
 }
 ```
 
-- [ ] **Step 5: Make the screens and the subscription match the new model**
+- [x] **Step 5: Make the screens and the subscription match the new model**
 
 In `modules/ui/src/main/scala/wiggly/gin/ui/View.scala`, replace `apply` and `seated` with:
 
@@ -885,19 +889,19 @@ In `modules/ui/src/main/scala/wiggly/gin/ui/Main.scala`, replace `subscriptions`
 `Events.watch` names its subscription after the game id. The move from `Seated` to `Playing`
 therefore keeps the stream that is open and does not open a second one.
 
-- [ ] **Step 6: Run the suites and make sure they pass**
+- [x] **Step 6: Run the suites and make sure they pass**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.UpdateSuite wiggly.gin.ui.ViewSuite"`
 
 Expected: every test passes.
 
-- [ ] **Step 7: Run the gate**
+- [x] **Step 7: Run the gate**
 
 Run: `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test`
 
 Expected: green.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add modules/ui/src
@@ -933,7 +937,7 @@ buttons.
   - The CSS classes `fan`, `slot`, `pick`, `selected`, `end` and `meld-0` to `meld-2`, which Task 4
     and Task 5 use.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `modules/ui/src/test/scala/wiggly/gin/ui/CardsSuite.scala`:
 
@@ -1029,13 +1033,13 @@ object ViewSuite extends SimpleIOSuite with Checkers {
 }
 ```
 
-- [ ] **Step 2: Run them and make sure they fail**
+- [x] **Step 2: Run them and make sure they fail**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.CardsSuite wiggly.gin.ui.ViewSuite"`
 
 Expected: a compile failure, `Not found: Cards`.
 
-- [ ] **Step 3: Write `Cards`**
+- [x] **Step 3: Write `Cards`**
 
 Create `modules/ui/src/main/scala/wiggly/gin/ui/Cards.scala`:
 
@@ -1146,7 +1150,7 @@ If `svg`, `role`, `SVG.textTag` or `Aria.ariaLabel` does not resolve, read the n
 This plan took them from that jar. Tyrian names the SVG `text` element
 `textTag`, because `text` is the text node.
 
-- [ ] **Step 4: Draw the table with `Cards`**
+- [x] **Step 4: Draw the table with `Cards`**
 
 In `modules/ui/src/main/scala/wiggly/gin/ui/View.scala`, replace `opponent` and `pile` with:
 
@@ -1188,7 +1192,7 @@ In `label`, use the short name:
 
 Delete the private `card` and `name` functions. Nothing calls them now.
 
-- [ ] **Step 5: Style the cards**
+- [x] **Step 5: Style the cards**
 
 In `modules/server/src/main/resources/web/gin.css`, add three tints to `:root`:
 
@@ -1248,7 +1252,7 @@ In `modules/server/src/main/resources/web/index.html`, add the pattern as the fi
     </svg>
 ```
 
-- [ ] **Step 6: Exclude `Cards` from coverage beside `View`**
+- [x] **Step 6: Exclude `Cards` from coverage beside `View`**
 
 In `build.sbt`, change the exclusion line to:
 
@@ -1259,7 +1263,7 @@ ThisBuild / coverageExcludedFiles := ".*/server/Main;.*/server/HttpServer;.*/ui/
 Coverage is off for every Scala.js target, so this changes no figure today. If that changes, the
 list is already right.
 
-- [ ] **Step 7: Run the suites and make sure they pass**
+- [x] **Step 7: Run the suites and make sure they pass**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.CardsSuite wiggly.gin.ui.ViewSuite"`
 
@@ -1281,13 +1285,13 @@ and that red suits are red. If every card is an empty box, the browser created t
 the HTML namespace. In that case, read how Tyrian's `Rendering.toVNode` passes `svg` to snabbdom,
 and say so before working around it.
 
-- [ ] **Step 9: Run the gate**
+- [x] **Step 9: Run the gate**
 
 Run: `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test`
 
 Expected: green.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add build.sbt modules/ui/src modules/server/src/main/resources/web
@@ -1316,7 +1320,7 @@ hand is drawn in the holding's order, with a tint for each meld and the three so
   - In `View`: `slot(card: Card, tint: Option[String], selectable: Boolean, selected: Boolean): Html[Msg]`,
     which Task 5 changes. `hand(view, holding, available)` draws one `div.fan` of slots.
 
-- [ ] **Step 1: Write the handler reader**
+- [x] **Step 1: Write the handler reader**
 
 Create `modules/ui/src/test/scala/wiggly/gin/ui/Handlers.scala`:
 
@@ -1352,7 +1356,7 @@ object Handlers {
 }
 ```
 
-- [ ] **Step 2: Write the failing view tests**
+- [x] **Step 2: Write the failing view tests**
 
 In `modules/ui/src/test/scala/wiggly/gin/ui/ViewSuite.scala`, change the domain import to
 `wiggly.gin.core.domain.*`, and add these values and tests:
@@ -1437,14 +1441,14 @@ In `modules/ui/src/test/scala/wiggly/gin/ui/ViewSuite.scala`, change the domain 
 
 Add `import org.scalacheck.Gen` to the imports.
 
-- [ ] **Step 3: Run it and make sure it fails**
+- [x] **Step 3: Run it and make sure it fails**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.ViewSuite"`
 
 Expected: the new tests fail. Nothing is clickable but the move buttons, there are no tints and
 there are no sort buttons.
 
-- [ ] **Step 4: Write the table**
+- [x] **Step 4: Write the table**
 
 In `modules/ui/src/main/scala/wiggly/gin/ui/View.scala`, change the `Playing` case of `apply` to
 pass the holding:
@@ -1546,7 +1550,7 @@ Replace `table`, `pile`, `hand` and `moves` with the functions below, and delete
 
 The `.melds` rule left `gin.css` in Task 3, and no class in the view refers to it now.
 
-- [ ] **Step 5: Run the view suite and make sure it passes**
+- [x] **Step 5: Run the view suite and make sure it passes**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.ViewSuite"`
 
@@ -1567,13 +1571,13 @@ Run `sbt server/run` and open two windows as in Task 3. Make sure that each of t
 | The three sort buttons reorder the hand, and the tints stay with their cards | The order is the player's, the melds are the server's. |
 | After your discard, your hand keeps the order you chose | `reconcile` keeps the order across views. |
 
-- [ ] **Step 7: Run the gate**
+- [x] **Step 7: Run the gate**
 
 Run: `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test`
 
 Expected: green.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add modules/ui/src
@@ -1595,7 +1599,7 @@ Each card in the hand can be lifted and dropped before another card, or at the e
   `Handlers` from Task 4.
 - Produces: nothing a later task uses.
 
-- [ ] **Step 1: Write the failing view tests**
+- [x] **Step 1: Write the failing view tests**
 
 Add to `modules/ui/src/test/scala/wiggly/gin/ui/ViewSuite.scala`:
 
@@ -1626,13 +1630,13 @@ Add to `modules/ui/src/test/scala/wiggly/gin/ui/ViewSuite.scala`:
   }
 ```
 
-- [ ] **Step 2: Run it and make sure it fails**
+- [x] **Step 2: Run it and make sure it fails**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.ViewSuite"`
 
 Expected: the three new tests fail with no drop, dragover or dragstart handlers.
 
-- [ ] **Step 3: Make the slots draggable**
+- [x] **Step 3: Make the slots draggable**
 
 In `modules/ui/src/main/scala/wiggly/gin/ui/View.scala`, add the imports:
 
@@ -1685,7 +1689,7 @@ In `hand`, add the end of the row as the last child of the fan:
 `onDragOver` and `onDrop` keep Tyrian's default, which calls `preventDefault`. That is what makes
 an element a drop target, and it stops Firefox from opening the dropped text as a page.
 
-- [ ] **Step 4: Run the view suite and make sure it passes**
+- [x] **Step 4: Run the view suite and make sure it passes**
 
 Run: `sbt "ui/testOnly wiggly.gin.ui.ViewSuite"`
 
@@ -1711,13 +1715,13 @@ inner `button` from hand cards. If dragging does not work at all in one
 of the browsers, stop and report it. The spec says that dragging then moves out of this work and
 the sort buttons stay, and that decision belongs to the user.
 
-- [ ] **Step 6: Run the gate**
+- [x] **Step 6: Run the gate**
 
 Run: `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test`
 
 Expected: green.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add modules/ui/src
@@ -1749,7 +1753,7 @@ mouse only, apart from Pass. Make sure that the checks in Task 4 Step 6 and Task
 the image. Make sure that a reload keeps the seat. A reload starts the hand from the server's
 arrangement, as the spec says.
 
-- [ ] **Step 2: Update the earlier spec**
+- [x] **Step 2: Update the earlier spec**
 
 In `docs/SPEC-WEB-UI.md`, replace the sentence "Cards are drawn in CSS as text, with the suit in
 its own color. No graphics and no animation." with:
@@ -1767,7 +1771,7 @@ drop with:
   [the card table spec](SPEC-CARD-TABLE.md).
 ```
 
-- [ ] **Step 3: Record where the code came out different**
+- [x] **Step 3: Record where the code came out different**
 
 If a task above differs from `docs/SPEC-CARD-TABLE.md`, add a section "Where the code came out
 different" to that spec. Use the three columns of the same section in `docs/SPEC-WEB-UI.md`: the
@@ -1776,13 +1780,13 @@ spec said, the code does, and why. If nothing differed, add no section.
 At the top of this plan, under **Spec**, add a **Status** line that says the plan is implemented,
 and name any step that nobody did.
 
-- [ ] **Step 4: Run the gate**
+- [x] **Step 4: Run the gate**
 
 Run: `SBT_TPOLECAT_CI=1 sbt scalafmtCheckAll scalafmtSbtCheck test`
 
 Expected: green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs

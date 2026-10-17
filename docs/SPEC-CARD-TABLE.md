@@ -218,6 +218,16 @@ The properties above are the check on `Holding`.
 | Where that state lives | A `Holding` beside the view, in a new `Model.Playing` | One type holds the invariants, and the view stays exactly as the server sent it. |
 | How melds show in a custom order | A tint per meld | The grouping still tells the player what scores, wherever the cards sit. |
 
+## Where the code came out different
+
+Everything above is what landed, with these exceptions.
+
+| The spec said | The code does | Why |
+| --- | --- | --- |
+| The "Testing" list names the `Holding` properties | The code also has the generators `ViewGen.discarding` and `ViewGen.discardTurn`, built by drawing rather than filtering. Its generators fail loudly on a move the rules refuse | A filtered generator starved the properties. A swallowed refusal hid disagreements between `Moves.available` and the rules. |
+| The Dragging section names a Firefox fallback for a button inside a draggable slot | The code does not apply it yet | It changes keyboard semantics. It is only needed if a person sees the bug in Firefox. |
+| Nothing about a finished match in the update tests | `Saw` of a finished match while playing is covered by code and not by a property | The tests in `core` have no generator for a finished match. |
+
 ## Deliberately left out
 
 - No pip layouts and no court art. The corner index is enough to play.

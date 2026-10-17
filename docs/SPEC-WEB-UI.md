@@ -39,7 +39,8 @@ The table shows the following, and every item comes from a field the view alread
 | The running score | `totals` |
 | What the last round came to | `previous` |
 
-Cards are drawn in CSS as text, with the suit in its own color. No graphics and no animation.
+Cards were drawn in CSS as text when this spec landed. [The card table spec](SPEC-CARD-TABLE.md)
+replaced that with pictures and mouse play.
 
 ## The shape of the build
 
@@ -273,7 +274,8 @@ types and of cats-effect in a browser. It was a known cost of this approach rath
 - No WebSocket. It stays on the later list, behind `GameEvents`, as the design document has it.
 - No lobby, no listing of games and no accounts. The API has none of those and this adds none.
 - No offline play and no service worker. A game lives on the server.
-- No animation, no card graphics and no drag and drop. Cards are text in CSS.
+- No animation. Card graphics and drag and drop came later, in
+  [the card table spec](SPEC-CARD-TABLE.md).
 - No layout work past a single column that reads on a narrow screen. A real responsive pass is a
   separate piece of work with its own design.
 - No reconnect handling past what `EventSource` does on its own. A browser retries a dropped
