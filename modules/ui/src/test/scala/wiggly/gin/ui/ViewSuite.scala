@@ -123,11 +123,30 @@ object ViewSuite extends SimpleIOSuite with Checkers {
 
   test("each meld has its own tint, and deadwood has none") {
     forall(ViewGen.inPlay) { view =>
-      val rendered = drawn(playing(view))
-      val tinted   = (0 until 3).toList.map(i => s"meld-$i".r.findAllIn(rendered).size)
-      val melds    = view.arrangement.melds.map(_.cards.size)
+      val slots = """(?s)class="slot(?: ([^"]*))?".*?aria-label="([^"]*)"""".r
+      val found = slots
+        .findAllMatchIn(drawn(playing(view)))
+        .map(m => m.group(2) -> Option(m.group(1)))
+        .toMap
+      val expected = view.arrangement.melds.zipWithIndex.flatMap { case (meld, i) =>
+        meld.cards.toList.map(card => Cards.name(card) -> Option(s"meld-$i"))
+      }.toMap ++ view.arrangement.deadwood.map(card => Cards.name(card) -> Option.empty[String])
 
-      expect.same(melds ++ List.fill(3 - melds.size)(0), tinted)
+      expect.same(expected, found)
+    }
+  }
+
+  test("the hand is drawn in the holding's order") {
+    forall(ViewGen.inPlay) { view =>
+      val holding = Holding.of(view).sorted(Sorting.ByRank, view)
+      val names   = held(view).map(Cards.name).toSet
+      val drawnIn = """aria-label="([^"]*)"""".r
+        .findAllMatchIn(View(Model.Playing(seat, view, holding, None)).render)
+        .map(_.group(1))
+        .filter(names.contains)
+        .toList
+
+      expect.same(holding.order.map(Cards.name), drawnIn)
     }
   }
 
