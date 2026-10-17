@@ -82,6 +82,44 @@ object ViewSuite extends SimpleIOSuite with Checkers {
     }
   }
 
+  test("a pile that can be clicked is named for what clicking it does") {
+    forall(views) { view =>
+      val rendered  = drawn(playing(view))
+      val available = Moves.available(view)
+
+      expect
+        .same(
+          available.contains(Move.DrawStock),
+          rendered.contains("""aria-label="Draw from the stock"""")
+        )
+        .and(
+          expect.same(
+            available.contains(Move.DrawDiscard),
+            rendered.contains("""aria-label="Take the upcard"""")
+          )
+        )
+    }
+  }
+
+  test("a card that can be selected says whether it is, and only the selected card is") {
+    forall(ViewGen.discarding) { view =>
+      val holding = chosen(view).getOrElse(Holding.of(view))
+      val pressed = """(?s)aria-pressed="([^"]*)"[^>]*>.*?aria-label="([^"]*)"""".r
+      val found   = pressed
+        .findAllMatchIn(drawn(Model.Playing(seat, view, holding, None)))
+        .map(m => m.group(2) -> m.group(1))
+        .toMap
+      val expected = Moves
+        .available(view)
+        .collect { case Move.Discard(card) =>
+          Cards.name(card) -> holding.selected.contains(card).toString
+        }
+        .toMap
+
+      expect(holding.selected.nonEmpty).and(expect.same(expected, found))
+    }
+  }
+
   test("a card in the hand can be clicked exactly when it is a legal discard") {
     forall(views) { view =>
       val toggles = clicks(playing(view)).collect { case Msg.Toggle(card) => card }.toSet

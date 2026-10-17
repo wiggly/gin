@@ -2,6 +2,7 @@ package wiggly.gin.ui
 
 import cats.syntax.all.*
 import org.scalajs.dom
+import tyrian.Aria
 import tyrian.Attr
 import tyrian.Html
 import tyrian.Html.*
@@ -88,12 +89,12 @@ object View {
 
   private def piles(view: PlayerView.InPlay, available: List[Move]): Html[Msg] = {
     val upcard = view.upcard.fold(p(cls := "empty-pile")(text("The pile is empty"))) { up =>
-      pick(available.contains(Move.DrawDiscard), Msg.Play(Move.DrawDiscard))(Cards.face(up))
+      draw(Move.DrawDiscard, available)(Cards.face(up))
     }
 
     div(cls := "piles")(
       div(cls := "stock")(
-        pick(available.contains(Move.DrawStock), Msg.Play(Move.DrawStock))(Cards.back),
+        draw(Move.DrawStock, available)(Cards.back),
         p(text(s"Stock ${view.stockSize}"))
       ),
       div(cls := "upcard")(upcard, p(text(s"Pile ${view.discardSize}")))
@@ -140,7 +141,7 @@ object View {
       lift(card),
       onDragOver(Msg.Hover),
       onDrop(Msg.Drop(Some(card)))
-    )(pick(selectable, Msg.Toggle(card))(Cards.face(card)))
+    )(pick(selectable, Msg.Toggle(card), Aria.ariaPressed := selected.toString)(Cards.face(card)))
   }
 
   /** Tyrian cancels the default of every event unless told not to, and cancelling `dragstart`
@@ -180,8 +181,12 @@ object View {
   private def play(move: Move): Html[Msg] = button(onClick(Msg.Play(move)))(text(label(move)))
 
   /** Something a player can click is a button, so that the keyboard reaches it as well. */
-  private def pick(enabled: Boolean, msg: Msg)(art: Html[Msg]): Html[Msg] =
-    if (enabled) button(cls := "pick", onClick(msg))(art) else art
+  private def pick(enabled: Boolean, msg: Msg, describing: Attr[Msg])(art: Html[Msg]): Html[Msg] =
+    if (enabled) button(cls := "pick", onClick(msg), describing)(art) else art
+
+  /** A pile's picture names the card, and the button has to name what pressing it does. */
+  private def draw(move: Move, available: List[Move])(art: Html[Msg]): Html[Msg] =
+    pick(available.contains(move), Msg.Play(move), Aria.ariaLabel := label(move))(art)
 
   private def sortLabel(by: Sorting): String = {
     by match {
