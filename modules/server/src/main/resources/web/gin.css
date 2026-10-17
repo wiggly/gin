@@ -34,17 +34,18 @@ h2 { font-size: 1.1rem; }
 /* Eleven cards do not fit the column side by side, so a hand overlaps rather than widens. */
 .fan { display: flex; align-items: flex-end; margin: 0.4rem 0; }
 .fan > * + * { margin-left: -1.5rem; }
+.fan > .end { margin-left: 0; }
 
 .piles { display: flex; gap: 1.5rem; margin: 1rem 0; }
 .piles p { margin: 0.2rem 0 0; font-size: 0.9rem; }
 .empty-pile { width: 4.375rem; height: 6.25rem; border: 1px dashed var(--line); border-radius: 0.4rem; }
 
-.slot { transition: transform 0.12s ease; border-radius: 0 0 0.4rem 0.4rem; }
+.slot { transition: transform 0.12s ease; border-radius: 0 0 0.4rem 0.4rem; border-bottom: 0.25rem solid transparent; }
 .slot.selected { transform: translateY(-0.75rem); }
 .slot.selected .outline { stroke: var(--ink); stroke-width: 2; }
-.slot.meld-0 { border-bottom: 0.25rem solid var(--meld-0); }
-.slot.meld-1 { border-bottom: 0.25rem solid var(--meld-1); }
-.slot.meld-2 { border-bottom: 0.25rem solid var(--meld-2); }
+.slot.meld-0 { border-bottom-color: var(--meld-0); }
+.slot.meld-1 { border-bottom-color: var(--meld-1); }
+.slot.meld-2 { border-bottom-color: var(--meld-2); }
 
 .pick { display: block; padding: 0; border: 0; background: none; cursor: pointer; }
 .pick:hover { transform: translateY(-0.25rem); }
