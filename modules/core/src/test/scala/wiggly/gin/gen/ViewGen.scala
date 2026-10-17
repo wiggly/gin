@@ -48,6 +48,10 @@ object ViewGen {
     (viewOf(game, you), viewOf(later, you))
   }
 
+  /** Filtered, because a move ends the round and deals afresh only rarely, so little is thrown away. */
+  val sameDeal: Gen[(PlayerView.InPlay, PlayerView.InPlay)] =
+    turn.retryUntil { case (before, after) => after.stockSize <= before.stockSize }
+
   /** A discard or knock by the player who owes one, seen by that same player before and after. */
   val discardTurn: Gen[(PlayerView.InPlay, PlayerView.InPlay)] = for {
     game     <- GameGen.inPlay

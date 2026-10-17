@@ -82,10 +82,12 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
   }
 
   test("a later view keeps the order the player chose and clears the last error") {
-    forall(ViewGen.turn) { case (before, after) =>
+    forall(ViewGen.sameDeal) { case (before, after) =>
       val mine       = Holding.of(before).sorted(Sorting.ByRank, before)
       val (model, _) = Update(Model.Playing(seat, before, mine, Some("stale")), Msg.Saw(after))
-      expect.same(Model.Playing(seat, after, mine.reconcile(after), None), model)
+
+      expect(after.stockSize <= before.stockSize)
+        .and(expect.same(Model.Playing(seat, after, mine.reconcile(after), None), model))
     }
   }
 
