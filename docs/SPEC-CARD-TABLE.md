@@ -27,26 +27,47 @@ does not have. This work adds the first state that belongs to the browser alone:
 hand, the selected card and the card being dragged. The server never sees any of it, and none of
 it changes what a player holds or which moves are legal.
 
-`Model.Seated` gains one field, `hand: Hand`. The view stays unchanged beside it.
+A round in play gets its own case of `Model`, because only a round in play has a hand to lay
+out. The other seated views keep the case they have, narrowed to the views that have no hand.
 
 ```scala
-final case class Hand private (
+case Seated(
+    credentials: Credentials,
+    view: PlayerView.AwaitingOpponent | PlayerView.Over,
+    error: Option[String]
+)
+case Playing(
+    credentials: Credentials,
+    view: PlayerView.InPlay,
+    holding: Holding,
+    error: Option[String]
+)
+```
+
+A model in play with no holding, or a holding with no round, cannot be built. The view stays
+exactly as the server sent it.
+
+The type is `Holding` rather than `Hand`, because `core` already has a `Hand`, and `View` imports
+all of `core.domain`.
+
+```scala
+final case class Holding private (
     order: List[Card],
     selected: Option[Card],
     dragging: Option[Card]
 )
 ```
 
-The constructor is private. These are the only ways to make or change a `Hand`:
+The constructor is private. These are the only ways to make or change a `Holding`:
 
 | Operation | What it does |
 | --- | --- |
-| `Hand.of(view)` | The server's order, melds first and then deadwood. Nothing selected or lifted. |
-| `hand.reconcile(view)` | Keeps the player's order for the cards still held, drops cards no longer held, and puts new cards last. If the selected card is still a legal discard, keeps the selection. Clears the lifted card. |
-| `hand.sorted(by, view)` | Puts the whole hand in the order `by` names. `ByMelds` reads the melds from `view`. |
-| `hand.moved(before)` | If no card is lifted, does nothing. Otherwise puts the lifted card directly before `before`, or last for `None`, and clears the lifted card. |
-| `hand.lifted(card)` | If the player holds the card, records it as the card being dragged. |
-| `hand.toggled(card, view)` | If the card is selected, deselects it. If it is a legal discard in `view`, selects it. Otherwise does nothing. |
+| `Holding.of(view)` | The server's order, melds first and then deadwood. Nothing selected or lifted. |
+| `holding.reconcile(view)` | Keeps the player's order for the cards still held, drops cards no longer held, and puts new cards last. If the selected card is still a legal discard, keeps the selection. If the lifted card is still held, keeps it, because the other player's moves arrive while a card is in the air. |
+| `holding.sorted(by, view)` | Puts the whole hand in the order `by` names. `ByMelds` reads the melds from `view`. |
+| `holding.moved(before)` | If no card is lifted, does nothing. Otherwise puts the lifted card directly before `before`, or last for `None`, and clears the lifted card. |
+| `holding.lifted(card)` | If the player holds the card, records it as the card being dragged. |
+| `holding.toggled(card, view)` | If the card is selected, deselects it. If it is a legal discard in `view`, selects it. Otherwise does nothing. |
 
 Together these hold three invariants. No single field can carry them, so the tests state them as
 properties:
@@ -64,25 +85,27 @@ suit and then orders by rank, and `ByRank` orders by rank and then by suit.
 action buttons all send a `Play` whose move comes from `Moves.available`. The rule of which moves
 are legal is therefore still stated once, in `core`.
 
-Four new messages change only the hand:
+Five new messages change only the hand:
 
 | Message | Sent by | Update |
 | --- | --- | --- |
-| `Toggle(card)` | A click on a card in the hand | `hand.toggled(card, view)` |
-| `Sort(by)` | A sort button | `hand.sorted(by, view)` |
-| `Lift(card)` | `dragstart` on a card in the hand | `hand.lifted(card)` |
-| `Drop(before)` | `drop` on a card, or on the end of the row | `hand.moved(before)` |
+| `Toggle(card)` | A click on a card in the hand | `holding.toggled(card, view)` |
+| `Sort(by)` | A sort button | `holding.sorted(by, view)` |
+| `Lift(card)` | `dragstart` on a card in the hand | `holding.lifted(card)` |
+| `Drop(before)` | `drop` on a card, or on the end of the row | `holding.moved(before)` |
+| `Hover` | `dragover` on a drop target | Nothing. It exists because a handler has to return a message |
 
 The existing messages change as follows:
 
 | Message | Update |
 | --- | --- |
-| `Saw(view)` while `Connecting` | Seated, with `Hand.of(view)` |
-| `Saw(view)` while `Seated` | Seated, with `hand.reconcile(view)` |
+| `Saw(view)` for a round in play, from `Connecting` or `Seated` | `Playing`, with `Holding.of(view)` |
+| `Saw(view)` for a round in play, from `Playing` | `Playing`, with `holding.reconcile(view)` |
+| `Saw(view)` for any other view | `Seated`, and any holding is dropped |
 | `Play(move)` | The hand is unchanged. The next `Saw` settles it |
 | `Failed(reason)` | The hand is unchanged, so a refused discard keeps its selection |
 
-The four new messages do nothing in any state other than `Seated`. The existing catch-all case in
+The five new messages do nothing in any state other than `Playing`. The existing catch-all case in
 `Update` already gives that.
 
 ## Drawing a card
@@ -107,7 +130,8 @@ From top to bottom, the table shows these rows:
 1. The scoreboard, as today.
 2. The other player's hand, as `opponentSize` backs that overlap.
 3. The stock, as one back with its count under it, beside the upcard and the pile count.
-4. Your hand, in the order `hand.order` gives, with the sort buttons and the deadwood count under it.
+4. Your hand, in the order `holding.order` gives, with the sort buttons and the deadwood count
+   under it.
 5. The action buttons.
 6. The round before, and any error, as today.
 
@@ -121,7 +145,8 @@ deadwood count stays.
 ## What a player can click
 
 A thing is clickable when it leads to a move that `Moves.available` offers, or to a change of the
-hand. Nothing else is clickable. A clickable card is a `button` that wraps its SVG, so the keyboard reaches it too.
+hand. Nothing else is clickable. A clickable card is a `button` that wraps its SVG, so the keyboard
+reaches it too.
 Clickable things show a pointer and lift a little on hover.
 
 | Thing | Clickable when | Sends |
@@ -146,16 +171,20 @@ A player drags a card in their hand in any phase, on either player's turn, becau
 belongs to them alone. `dragstart` sends `Lift`. A drop on another card sends `Drop(Some(that
 card))`. A drop on the space after the last card sends `Drop(None)`.
 
-The `dragover` handler must call `preventDefault`, or no drop happens. Tyrian 0.14.0 has
-`onDragOver`, but how it reaches `preventDefault` is not known yet. The first task of the plan is a
-throwaway check of that. If Tyrian cannot do it, dragging moves out of this work and the sort
-buttons stay. A pointer-event version is a separate piece of work.
+The `dragover` handler must call `preventDefault`, or no drop happens. Tyrian's source settles
+this: every Tyrian `Event` calls `preventDefault` unless it is told not to. The same default
+cancels a drag at `dragstart`, so that one handler uses `noPreventDefault`. Firefox starts a drag
+only after `dataTransfer.setData`, so the `dragstart` handler calls it.
+
+What remains is how real browsers behave, and only a person at a browser can see that. The drag
+task ends with that check in Firefox and in Chrome. If dragging does not work there, it moves out
+of this work and the sort buttons stay. A pointer-event version is a separate piece of work.
 
 The only motion is a CSS transition on the lift. Animation stays out, as the web UI spec has it.
 
 ## Testing
 
-`Hand` is pure, so a new `HandSuite` tests it with properties. It reads in-play views from the
+`Holding` is pure, so a new `HoldingSuite` tests it with properties. It reads in-play views from the
 generators in `core`'s tests, which `ui` already reaches through `protocol`'s test edge.
 
 - Every operation keeps invariant 1.
@@ -163,10 +192,10 @@ generators in `core`'s tests, which `ui` already reaches through `protocol`'s te
 - `toggled` and `reconcile` keep invariant 2. `lifted` and `moved` keep invariant 3.
 - Toggling a selectable card twice gives back the hand it started from.
 - `moved(Some(t))` puts the lifted card directly before `t`.
-- `sorted(ByMelds, view)` equals `Hand.of(view).order`.
+- `sorted(ByMelds, view)` equals `Holding.of(view).order`.
 
 `UpdateSuite` gets one case for each new message, one for `Saw` keeping a custom order, and one for
-each new message arriving outside `Seated`.
+each new message arriving outside `Playing`.
 
 `ViewSuite` pins these by reading the rendered value:
 
@@ -176,7 +205,7 @@ each new message arriving outside `Seated`.
 - A meld card carries its tint class, and a deadwood card carries none.
 
 Coverage stays off for Scala.js targets, as the web UI spec records, so no floor applies to `ui`.
-The properties above are the check on `Hand`.
+The properties above are the check on `Holding`.
 
 ## Decisions settled up front
 
@@ -186,7 +215,7 @@ The properties above are the check on `Hand`.
 | How a discard is chosen | Select a card, then press a button | A stray click does not cost a card, and a knock stays a choice the player makes. |
 | How a player draws | A click on the stock or the upcard | The pile is the thing a player reaches for. |
 | Whether the hand can be reordered | Yes, with sort buttons and dragging | The player asked for it. The order is the browser's own state, so it changes nothing the server knows. |
-| Where that state lives | A `Hand` beside the view in `Model.Seated` | One type holds the invariants, and the view stays exactly as the server sent it. |
+| Where that state lives | A `Holding` beside the view, in a new `Model.Playing` | One type holds the invariants, and the view stays exactly as the server sent it. |
 | How melds show in a custom order | A tint per meld | The grouping still tells the player what scores, wherever the cards sit. |
 
 ## Deliberately left out
