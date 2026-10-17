@@ -100,7 +100,7 @@ The existing messages change as follows:
 | Message | Update |
 | --- | --- |
 | `Saw(view)` for a round in play, from `Connecting` or `Seated` | `Playing`, with `Holding.of(view)` |
-| `Saw(view)` for a round in play, from `Playing` | `Playing`, with `holding.reconcile(view)` |
+| `Saw(view)` for a round in play, from `Playing` | `Playing`, with `holding.reconcile(view)`. A new deal starts from `Holding.of(view)` instead. A new deal is recognised by its stock: within a round the stock only shrinks, so a view with a larger stock than the current view is a new deal |
 | `Saw(view)` for any other view | `Seated`, and any holding is dropped |
 | `Play(move)` | The hand is unchanged. The next `Saw` settles it |
 | `Failed(reason)` | The hand is unchanged, so a refused discard keeps its selection |

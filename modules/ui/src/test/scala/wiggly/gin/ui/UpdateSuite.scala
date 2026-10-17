@@ -89,6 +89,16 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
     }
   }
 
+  test("a new deal starts from the server's arrangement, whatever order the player chose") {
+    forall(ViewGen.newDeal) { case (before, after) =>
+      val mine       = Holding.of(before).sorted(Sorting.ByRank, before)
+      val (model, _) = Update(Model.Playing(seat, before, mine, Some("stale")), Msg.Saw(after))
+
+      expect(after.stockSize > before.stockSize)
+        .and(expect.same(Model.Playing(seat, after, Holding.of(after), None), model))
+    }
+  }
+
   test("a round that is no longer in play moves the player off the table and drops the holding") {
     forall(ViewGen.inPlay) { view =>
       val playing    = Model.Playing(seat, view, Holding.of(view), Some("stale"))

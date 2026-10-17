@@ -28,8 +28,8 @@ object Update {
       case (Model.Seated(credentials, _, _), Msg.Saw(view)) =>
         (seat(credentials, view, None), Cmd.None)
 
-      case (Model.Playing(credentials, _, holding, _), Msg.Saw(view)) =>
-        (seat(credentials, view, Some(holding)), Cmd.None)
+      case (Model.Playing(credentials, current, holding, _), Msg.Saw(view)) =>
+        (seat(credentials, view, Some((current, holding))), Cmd.None)
 
       case (Model.Playing(credentials, view, holding, _), Msg.Play(move)) =>
         (Model.Playing(credentials, view, holding, None), Api.play(credentials, move))
@@ -62,18 +62,25 @@ object Update {
   }
 
   /** A hand carries over from one view to the next while a round is in play, which is what keeps
-    * the order a player chose. A new round deals new cards, and reconciling then keeps none of
-    * them, so it needs no case of its own.
+    * the order a player chose. A new deal starts from the server's arrangement instead.
     */
-  private def seat(credentials: Credentials, view: PlayerView, kept: Option[Holding]): Model = {
+  private def seat(
+      credentials: Credentials,
+      view: PlayerView,
+      kept: Option[(PlayerView.InPlay, Holding)]
+  ): Model = {
     view match {
-      case playing: PlayerView.InPlay =>
-        Model.Playing(
-          credentials,
-          playing,
-          kept.fold(Holding.of(playing))(_.reconcile(playing)),
-          None
-        )
+      case playing: PlayerView.InPlay => {
+        // Within a round the stock only shrinks, and a new deal restores it, so a larger stock is
+        // how a new deal is recognised. A new hand shares cards with the old one by chance only.
+        val holding = kept match {
+          case Some((before, held)) if playing.stockSize <= before.stockSize =>
+            held.reconcile(playing)
+          case _ => Holding.of(playing)
+        }
+
+        Model.Playing(credentials, playing, holding, None)
+      }
       case waiting: PlayerView.AwaitingOpponent => Model.Seated(credentials, waiting, None)
       case over: PlayerView.Over                => Model.Seated(credentials, over, None)
     }

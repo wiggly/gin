@@ -64,12 +64,42 @@ object ViewGen {
     })
   } yield (viewOf(drawn, you), viewOf(after(drawn, move, next), you))
 
+  /** One player's view either side of a new deal. The first is some way into a round and has
+    * drawn from the stock at least once, so the deal always hands back a larger stock.
+    */
+  val newDeal: Gen[(PlayerView.InPlay, PlayerView.InPlay)] = for {
+    game  <- GameGen.inPlay
+    fresh <- GameGen.gamePlayed(0)
+    you   <- Gen.oneOf(Player.values.toList)
+    next  <- GameGen.deck
+  } yield {
+    fresh match {
+      case dealt: Game.InPlay => (viewOf(stockDrawn(game, next), you), viewOf(dealt, you))
+      case other              => sys.error(s"a joined game was not in play: $other")
+    }
+  }
+
   private def after(game: Game.InPlay, move: Move, next: Deck): Game.InPlay = {
     game.played(game.round.onTurn, move, next) match {
       case Right(playing: Game.InPlay) => playing
       // The match ended, so there is no later round to see. The same view twice is still a turn.
       case Right(_)    => game
       case Left(fault) => sys.error(s"a legal move was refused: $move, $fault")
+    }
+  }
+
+  private def stockDrawn(game: Game.InPlay, next: Deck): Game.InPlay = {
+    val onTurn = game.round.onTurn
+    val move   = Moves.available(viewOf(game, onTurn)).collectFirst {
+      case Move.DrawStock            => Move.DrawStock
+      case Move.Pass                 => Move.Pass
+      case discard @ Move.Discard(_) => discard
+    }
+
+    move.map(m => (m, game.played(onTurn, m, next))) match {
+      case Some((Move.DrawStock, Right(drawn: Game.InPlay))) => drawn
+      case Some((_, Right(playing: Game.InPlay)))            => stockDrawn(playing, next)
+      case other => sys.error(s"the round ended before a draw from the stock: $other")
     }
   }
 
