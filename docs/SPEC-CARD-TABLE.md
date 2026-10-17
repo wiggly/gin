@@ -144,8 +144,8 @@ deadwood count stays.
 
 ## What a player can click
 
-A thing is clickable when it leads to a move that `Moves.available` offers, or to a change of the
-hand. Nothing else is clickable. A clickable card is a `button` that wraps its SVG, so the keyboard
+If a thing leads to a move that `Moves.available` offers, or to a change of the hand, it is
+clickable. Nothing else is clickable. A clickable card is a `button` that wraps its SVG, so the keyboard
 reaches it too.
 Clickable things show a pointer and lift a little on hover.
 
@@ -225,13 +225,13 @@ Everything above is what landed, with these exceptions.
 | The spec said | The code does | Why |
 | --- | --- | --- |
 | The "Testing" list names the `Holding` properties | The code also has the generators `ViewGen.discarding` and `ViewGen.discardTurn`, built by drawing rather than filtering. Its generators fail loudly on a move the rules refuse | A filtered generator starved the properties. A swallowed refusal hid disagreements between `Moves.available` and the rules. |
-| The Dragging section names a Firefox fallback for a button inside a draggable slot | The code does not apply it yet | It changes keyboard semantics. It is only needed if a person sees the bug in Firefox. |
+| [The plan](PLAN-CARD-TABLE.md), Task 5 Step 5, names a Firefox fallback for a button inside a draggable slot | The code does not apply it yet | It changes keyboard semantics. A person has to see the bug in Firefox before it is needed. |
 | Nothing about a finished match in the update tests | `Saw` of a finished match while playing is covered by code and not by a property | The tests in `core` have no generator for a finished match. |
 
 ## Deliberately left out
 
 - No pip layouts and no court art. The corner index is enough to play.
 - No animation past the lift on hover and on selection.
-- No pointer-event dragging if HTML drag and drop does not work in Tyrian.
+- No pointer-event dragging. If HTML drag and drop does not work in Tyrian, the sort buttons stay.
 - The order of a hand is not saved. A reload starts from the server's arrangement.
 - No layout work past the single column. The overlap is the whole answer to width.
