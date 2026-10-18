@@ -227,19 +227,19 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
     }
   }
 
-  test("sorting by suit groups each suit, low to high") {
+  test("sorting by suit groups each suit, high to low") {
     forall(runs) { case (view, run) =>
       val keys = played(view, run).sorted(Sorting.BySuit, view).order.map(suitThenRank)
 
-      expect.same(keys.sorted, keys)
+      expect.same(keys.sorted.reverse, keys)
     }
   }
 
-  test("sorting by rank puts the ranks in order, suits breaking ties") {
+  test("sorting by rank puts the ranks high to low, suits breaking ties") {
     forall(runs) { case (view, run) =>
       val keys = played(view, run).sorted(Sorting.ByRank, view).order.map(rankThenSuit)
 
-      expect.same(keys.sorted, keys)
+      expect.same(keys.sorted.reverse, keys)
     }
   }
 

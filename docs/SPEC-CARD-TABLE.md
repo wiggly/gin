@@ -85,7 +85,8 @@ properties:
 3. When `dragging` holds a card, that card is in `order`.
 
 `Sorting` is an enum with three cases. `ByMelds` is the server's arrangement, `BySuit` groups by
-suit and then orders by rank, and `ByRank` orders by rank and then by suit.
+suit and then orders by rank, and `ByRank` orders by rank and then by suit. Both sorts put the
+highest card on the left, as a player holds a fan.
 
 ## Messages and update
 
