@@ -474,3 +474,5 @@ has somewhere to be recorded.
 - Middleware in `GinApi` for CORS, rate limiting and a request id.
 - Publishing the image to a registry, with the tagging, signing and scanning that publishing an
   artefact for somebody else to pull implies.
+
+Smaller open items from finished work are in [the follow-ups](FOLLOW-UPS.md).
