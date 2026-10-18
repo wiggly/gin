@@ -18,16 +18,6 @@ A reliable fix needs a deal number on `PlayerView.InPlay`. That changes the prot
 the codec, the redaction tests and [the card table spec](SPEC-CARD-TABLE.md) to agree. Then `seat`
 compares deal numbers, and `ViewGen` gains a pair at equal stock that crosses a deal.
 
-## 2. A cancelled drag leaves a card lifted
-
-Nothing handles `dragend` in `View.slot`. If the player cancels a drag with Escape or drops outside
-the hand, `Holding.dragging` keeps the card. A later drop of anything on the hand, for example
-selected text, then moves that card.
-
-The fix has four parts. Add a `Msg` for `dragend` and a `Holding` operation that clears `dragging`.
-Add a row to the messages table in [the card table spec](SPEC-CARD-TABLE.md), and a property to
-`HoldingSuite`.
-
 ## 3. The upcard button hides the card's name
 
 The upcard button in `View.piles` has the label "Take the upcard". That label replaces the card's

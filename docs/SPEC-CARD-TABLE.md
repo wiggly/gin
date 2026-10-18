@@ -54,9 +54,15 @@ all of `core.domain`.
 final case class Holding private (
     order: List[Card],
     selected: Option[Card],
-    dragging: Option[Card]
+    drag: Option[Drag]
 )
+
+final case class Drag(card: Card, before: Option[Card])
 ```
+
+A `Drag` is the card in the air and the card it lands in front of if the player drops it now.
+`None` is the end of the row. `holding.dragging` is the lifted card alone, and `holding.shown` is
+the order the hand holds after a drop now. The view draws `shown`.
 
 The constructor is private. These are the only ways to make or change a `Holding`:
 
@@ -65,8 +71,10 @@ The constructor is private. These are the only ways to make or change a `Holding
 | `Holding.of(view)` | The server's order, melds first and then deadwood. Nothing selected or lifted. |
 | `holding.reconcile(view)` | Keeps the player's order for the cards still held, drops cards no longer held, and puts new cards last. If the selected card is still a legal discard, keeps the selection. If the lifted card is still held, keeps it, because the other player's moves arrive while a card is in the air. |
 | `holding.sorted(by, view)` | Puts the whole hand in the order `by` names. `ByMelds` reads the melds from `view`. |
-| `holding.moved(before)` | If no card is lifted, does nothing. Otherwise puts the lifted card directly before `before`, or last for `None`, and clears the lifted card. |
-| `holding.lifted(card)` | If the player holds the card, records it as the card being dragged. |
+| `holding.lifted(card)` | If the player holds the card, records it as the card being dragged, in the place it already has. |
+| `holding.hovered(slot)` | If a card is lifted, shows it in slot `slot` of the hand as drawn, or last if `slot` is past the end. Otherwise does nothing. |
+| `holding.dropped` | Keeps the order that `shown` gives and clears the lifted card. |
+| `holding.released` | Clears the lifted card. After a drop it changes nothing. Without a drop it puts the hand back as it was. |
 | `holding.toggled(card, view)` | If the card is selected, deselects it. If it is a legal discard in `view`, selects it. Otherwise does nothing. |
 
 Together these hold three invariants. No single field can carry them, so the tests state them as
@@ -85,14 +93,16 @@ suit and then orders by rank, and `ByRank` orders by rank and then by suit.
 action buttons all send a `Play` whose move comes from `Moves.available`. The rule of which moves
 are legal is therefore still stated once, in `core`.
 
-Five new messages change only the hand:
+Seven new messages change only the hand:
 
 | Message | Sent by | Update |
 | --- | --- | --- |
 | `Toggle(card)` | A click on a card in the hand | `holding.toggled(card, view)` |
 | `Sort(by)` | A sort button | `holding.sorted(by, view)` |
 | `Lift(card)` | `dragstart` on a card in the hand | `holding.lifted(card)` |
-| `Drop(before)` | `drop` on a card, or on the end of the row | `holding.moved(before)` |
+| `Enter(slot)` | `dragenter` on a slot in the hand, or on the end of the row | `holding.hovered(slot)` |
+| `Drop` | `drop` on a slot, or on the end of the row | `holding.dropped` |
+| `Release` | `dragend` on a card in the hand | `holding.released` |
 | `Hover` | `dragover` on a drop target | Nothing. It exists because a handler has to return a message |
 
 The existing messages change as follows:
@@ -168,8 +178,17 @@ offer it as a discard.
 ## Dragging
 
 A player drags a card in their hand in any phase, on either player's turn, because the order
-belongs to them alone. `dragstart` sends `Lift`. A drop on another card sends `Drop(Some(that
-card))`. A drop on the space after the last card sends `Drop(None)`.
+belongs to them alone. `dragstart` sends `Lift`. While the card is in the air, the hand shows it
+in the place where a drop puts it. The faint card is that place.
+
+`dragenter` sends `Enter` with the number of the slot under the pointer, not the card in it,
+because the cards move while the pointer moves. A slot gives the same result each time the browser
+reports it. A report from a slot that the browser did not redraw yet therefore cannot move the card
+back. A move to the left and a move to the right of the same distance cost the same pointer travel.
+
+A drop on the hand sends `Drop`, which keeps the order on show. `dragend` sends `Release`. If the
+player drops outside the hand or presses Escape, no drop comes first, so the hand goes back to the
+order it had before the drag.
 
 The `dragover` handler must call `preventDefault`, or no drop happens. Tyrian's source settles
 this: every Tyrian `Event` calls `preventDefault` unless it is told not to. The same default
@@ -189,9 +208,10 @@ generators in `core`'s tests, which `ui` already reaches through `protocol`'s te
 
 - Every operation keeps invariant 1.
 - `reconcile` keeps the relative order of the cards that stay, and puts new cards last.
-- `toggled` and `reconcile` keep invariant 2. `lifted` and `moved` keep invariant 3.
+- `toggled` and `reconcile` keep invariant 2. `lifted`, `hovered` and `dropped` keep invariant 3.
 - Toggling a selectable card twice gives back the hand it started from.
-- `moved(Some(t))` puts the lifted card directly before `t`.
+- `hovered(slot)` shows the lifted card in that slot and leaves the other cards in their order.
+- `dropped` keeps the order on show. `released` without a drop gives back the hand before the lift.
 - `sorted(ByMelds, view)` equals `Holding.of(view).order`.
 
 `UpdateSuite` gets one case for each new message, one for `Saw` keeping a custom order, and one for

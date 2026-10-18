@@ -19,7 +19,9 @@ enum Msg {
   case Toggle(card: Card)
   case Sort(by: Sorting)
   case Lift(card: Card)
-  case Drop(before: Option[Card])
+  case Enter(slot: Int)
+  case Drop
+  case Release
 
   /** A drop target has to cancel `dragover`, and a Tyrian handler has to return a message to do
     * it. This is that message, and nothing handles it.

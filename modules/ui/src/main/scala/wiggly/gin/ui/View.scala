@@ -111,14 +111,21 @@ object View {
 
     div(cls := "hand")(
       div(cls := "fan")(
-        holding.order.map { card =>
+        holding.shown.zipWithIndex.map { case (card, at) =>
           slot(
             card,
+            at,
             tints.get(card),
             available.contains(Move.Discard(card)),
-            holding.selected.contains(card)
+            holding.selected.contains(card),
+            holding.dragging.contains(card)
           )
-        } :+ div(cls := "end", onDragOver(Msg.Hover), onDrop(Msg.Drop(None)))()
+        } :+ div(
+          cls := "end",
+          onDragEnter(Msg.Enter(holding.order.size)),
+          onDragOver(Msg.Hover),
+          onDrop(Msg.Drop)
+        )()
       ),
       div(cls := "sorting")(
         Sorting.values.toList.map(by => button(onClick(Msg.Sort(by)))(text(sortLabel(by))))
@@ -129,18 +136,24 @@ object View {
 
   private def slot(
       card: Card,
+      at: Int,
       tint: Option[String],
       selectable: Boolean,
-      selected: Boolean
+      selected: Boolean,
+      lifted: Boolean
   ): Html[Msg] = {
-    val classes = "slot" :: tint.toList ++ Option.when(selected)("selected").toList
+    val classes = "slot" :: tint.toList ++
+      Option.when(selected)("selected").toList ++
+      Option.when(lifted)("lifted").toList
 
     div(
       cls := classes.mkString(" "),
       attribute("draggable", "true"),
       lift(card),
+      onDragEnter(Msg.Enter(at)),
       onDragOver(Msg.Hover),
-      onDrop(Msg.Drop(Some(card)))
+      onDrop(Msg.Drop),
+      onDragEnd(Msg.Release)
     )(pick(selectable, Msg.Toggle(card), Aria.ariaPressed := selected.toString)(Cards.face(card)))
   }
 

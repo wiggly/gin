@@ -190,9 +190,9 @@ object ViewSuite extends SimpleIOSuite with Checkers {
     }
   }
 
-  test("the hand is drawn in the holding's order") {
-    forall(ViewGen.inPlay) { view =>
-      val holding = Holding.of(view).sorted(Sorting.ByRank, view)
+  test("the hand is drawn in the order it would hold if the lifted card were dropped") {
+    forall(drags) { case (view, card, slot) =>
+      val holding = Holding.of(view).sorted(Sorting.ByRank, view).lifted(card).hovered(slot)
       val names   = held(view).map(Cards.name).toSet
       val drawnIn = """aria-label="([^"]*)"""".r
         .findAllMatchIn(View(Model.Playing(seat, view, holding, None)).render)
@@ -200,7 +200,19 @@ object ViewSuite extends SimpleIOSuite with Checkers {
         .filter(names.contains)
         .toList
 
-      expect.same(holding.order.map(Cards.name), drawnIn)
+      expect.same(holding.shown.map(Cards.name), drawnIn)
+    }
+  }
+
+  test("only the lifted card is drawn as lifted") {
+    forall(drags) { case (view, card, slot) =>
+      val holding = Holding.of(view).lifted(card).hovered(slot)
+      val lifted  = """(?s)class="slot[^"]* lifted".*?aria-label="([^"]*)"""".r
+        .findAllMatchIn(View(Model.Playing(seat, view, holding, None)).render)
+        .map(_.group(1))
+        .toList
+
+      expect.same(List(Cards.name(card)), lifted)
     }
   }
 
@@ -212,11 +224,20 @@ object ViewSuite extends SimpleIOSuite with Checkers {
     }
   }
 
-  test("every card in the hand is a drop target, and so is the end of the row") {
+  test("every slot in the hand is a drop target, and so is the end of the row") {
     forall(ViewGen.inPlay) { view =>
-      val drops = Handlers.sent(View(playing(view)), "drop")
+      val html  = View(playing(view))
+      val slots = held(view).indices.toList :+ held(view).size
 
-      expect.same(held(view).map(card => Msg.Drop(Some(card))) :+ Msg.Drop(None), drops)
+      expect
+        .same(slots.map(Msg.Enter(_)), Handlers.sent(html, "dragenter"))
+        .and(expect.same(slots.map(_ => Msg.Drop), Handlers.sent(html, "drop")))
+    }
+  }
+
+  test("every card in the hand lets go when its drag ends, dropped or not") {
+    forall(ViewGen.inPlay) { view =>
+      expect.same(held(view).map(_ => Msg.Release), Handlers.sent(View(playing(view)), "dragend"))
     }
   }
 
@@ -248,6 +269,12 @@ object ViewSuite extends SimpleIOSuite with Checkers {
         .and(expect.same(held(view).size, """draggable="true"""".r.findAllIn(html.render).size))
     }
   }
+
+  private val drags: Gen[(PlayerView.InPlay, Card, Int)] = for {
+    view <- ViewGen.inPlay
+    card <- Gen.oneOf(held(view))
+    slot <- Gen.choose(0, held(view).size)
+  } yield (view, card, slot)
 
   private def playing(view: PlayerView.InPlay): Model =
     Model.Playing(seat, view, Holding.of(view), None)

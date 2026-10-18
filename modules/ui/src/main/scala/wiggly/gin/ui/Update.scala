@@ -43,8 +43,14 @@ object Update {
       case (playing: Model.Playing, Msg.Lift(card)) =>
         (playing.copy(holding = playing.holding.lifted(card)), Cmd.None)
 
-      case (playing: Model.Playing, Msg.Drop(before)) =>
-        (playing.copy(holding = playing.holding.moved(before)), Cmd.None)
+      case (playing: Model.Playing, Msg.Enter(slot)) =>
+        (playing.copy(holding = playing.holding.hovered(slot)), Cmd.None)
+
+      case (playing: Model.Playing, Msg.Drop) =>
+        (playing.copy(holding = playing.holding.dropped), Cmd.None)
+
+      case (playing: Model.Playing, Msg.Release) =>
+        (playing.copy(holding = playing.holding.released), Cmd.None)
 
       case (Model.Start(joining, _), Msg.Failed(reason)) =>
         (Model.Start(joining, Some(reason)), Cmd.None)

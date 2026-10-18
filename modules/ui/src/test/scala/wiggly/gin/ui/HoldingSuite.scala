@@ -16,7 +16,9 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
     case Toggle(card: Card)
     case Sort(by: Sorting)
     case Lift(card: Card)
-    case Drop(before: Option[Card])
+    case Enter(slot: Int)
+    case Drop
+    case Release
   }
 
   private given Show[PlayerView.InPlay] = Show.fromToString
@@ -30,7 +32,9 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
       card.map(Op.Toggle(_)),
       Gen.oneOf(Sorting.values.toList).map(Op.Sort(_)),
       card.map(Op.Lift(_)),
-      Gen.option(card).map(Op.Drop(_))
+      Gen.choose(0, held(view).size).map(Op.Enter(_)),
+      Gen.const(Op.Drop),
+      Gen.const(Op.Release)
     )
 
     Gen.choose(0, 12).flatMap(n => Gen.listOfN(n, op)).map(view -> _)
@@ -39,11 +43,11 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
   private val choices: Gen[(PlayerView.InPlay, Card)] =
     views.flatMap(view => Gen.oneOf(held(view)).map(view -> _))
 
-  private val pairs: Gen[(PlayerView.InPlay, Card, Card)] = for {
-    view   <- ViewGen.inPlay
-    card   <- Gen.oneOf(held(view))
-    target <- Gen.oneOf(held(view))
-  } yield (view, card, target)
+  private val drags: Gen[(PlayerView.InPlay, Card, Int)] = for {
+    view <- ViewGen.inPlay
+    card <- Gen.oneOf(held(view))
+    slot <- Gen.choose(0, held(view).size)
+  } yield (view, card, slot)
 
   private def played(view: PlayerView.InPlay, run: List[Op]): Holding = {
     run.foldLeft(Holding.of(view)) { (holding, op) =>
@@ -51,7 +55,9 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
         case Op.Toggle(card) => holding.toggled(card, view)
         case Op.Sort(by)     => holding.sorted(by, view)
         case Op.Lift(card)   => holding.lifted(card)
-        case Op.Drop(before) => holding.moved(before)
+        case Op.Enter(slot)  => holding.hovered(slot)
+        case Op.Drop         => holding.dropped
+        case Op.Release      => holding.released
       }
     }
   }
@@ -97,6 +103,12 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
       val holding = played(view, run)
 
       expect(holding.dragging.forall(holding.order.contains))
+    }
+  }
+
+  test("whatever the player does, the hand on show holds exactly the cards the server dealt") {
+    forall(runs) { case (view, run) =>
+      expect.same(held(view).sorted, played(view, run).shown.sorted)
     }
   }
 
@@ -162,29 +174,50 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
     }
   }
 
-  test("a lifted card dropped on another sits directly before it") {
-    forall(pairs) { case (view, card, target) =>
-      val order = Holding.of(view).lifted(card).moved(Some(target)).order
-
-      if (card === target) {
-        expect.same(held(view), order)
-      } else {
-        expect.same(order.indexOf(target) - 1, order.indexOf(card))
-      }
+  test("lifting a card leaves it where it was until it moves over another slot") {
+    forall(choices) { case (view, card) =>
+      expect.same(held(view), Holding.of(view).lifted(card).shown)
     }
   }
 
-  test("a lifted card dropped at the end of the row goes last") {
-    forall(choices) { case (view, card) =>
-      val moved = Holding.of(view).lifted(card).moved(None)
+  test("a lifted card over a slot is shown in that slot, whichever way it moved") {
+    forall(drags) { case (view, card, slot) =>
+      val shown = Holding.of(view).lifted(card).hovered(slot).shown
 
-      expect.same(Some(card), moved.order.lastOption).and(expect(moved.dragging.isEmpty))
+      expect
+        .same(slot.min(held(view).size - 1), shown.indexOf(card))
+        .and(expect.same(held(view).filterNot(_ === card), shown.filterNot(_ === card)))
     }
   }
 
-  test("a drop with nothing lifted changes nothing") {
-    forall(choices) { case (view, card) =>
-      expect.same(Holding.of(view), Holding.of(view).moved(Some(card)))
+  test("a drop keeps the hand as it was shown and lets go of the card") {
+    forall(drags) { case (view, card, slot) =>
+      val over    = Holding.of(view).lifted(card).hovered(slot)
+      val dropped = over.dropped
+
+      expect.same(over.shown, dropped.order).and(expect(dropped.dragging.isEmpty))
+    }
+  }
+
+  test("a drag that ends without a drop puts the hand back as it was") {
+    forall(drags) { case (view, card, slot) =>
+      expect.same(Holding.of(view), Holding.of(view).lifted(card).hovered(slot).released)
+    }
+  }
+
+  test("a drag that ends after a drop keeps the drop") {
+    forall(drags) { case (view, card, slot) =>
+      val dropped = Holding.of(view).lifted(card).hovered(slot).dropped
+
+      expect.same(dropped, dropped.released)
+    }
+  }
+
+  test("moving over a slot or dropping with nothing lifted changes nothing") {
+    forall(drags) { case (view, _, slot) =>
+      val start = Holding.of(view)
+
+      expect.same(start, start.hovered(slot)).and(expect.same(start, start.dropped))
     }
   }
 

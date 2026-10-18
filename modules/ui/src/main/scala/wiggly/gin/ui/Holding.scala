@@ -7,6 +7,11 @@ enum Sorting {
   case ByMelds, BySuit, ByRank
 }
 
+/** A card in the air, and the card it would land in front of if it were dropped now. `None` is the
+  * end of the row.
+  */
+final case class Drag(card: Card, before: Option[Card])
+
 /** The player's hand as the browser lays it out.
   *
   * The server decides which cards are held. This decides only where they sit and which one the
@@ -17,8 +22,22 @@ enum Sorting {
 final case class Holding private (
     order: List[Card],
     selected: Option[Card],
-    dragging: Option[Card]
+    drag: Option[Drag]
 ) {
+
+  def dragging: Option[Card] = drag.map(_.card)
+
+  /** The order the hand would hold if the lifted card were dropped now, which is the order to draw
+    * while it is in the air.
+    */
+  def shown: List[Card] = {
+    drag.fold(order) { case Drag(card, before) =>
+      val rest         = order.filterNot(_ === card)
+      val (head, tail) = rest.splitAt(before.map(rest.indexOf).getOrElse(rest.size))
+
+      head ++ (card :: tail)
+    }
+  }
 
   def reconcile(view: PlayerView.InPlay): Holding = {
     val held  = Holding.cardsIn(view.arrangement)
@@ -28,7 +47,9 @@ final case class Holding private (
     new Holding(
       kept ++ added,
       selected.filter(Holding.discardable(view)),
-      dragging.filter(held.contains)
+      drag.filter(lifted => held.contains(lifted.card)).map { lifted =>
+        lifted.copy(before = lifted.before.filter(held.contains))
+      }
     )
   }
 
@@ -52,22 +73,29 @@ final case class Holding private (
     }
   }
 
-  def lifted(card: Card): Holding =
-    if (order.contains(card)) copy(dragging = Some(card)) else this
-
-  def moved(before: Option[Card]): Holding = {
-    dragging match {
-      case None                                => this
-      case Some(card) if before.contains(card) => copy(dragging = None)
-      case Some(card)                          => {
-        val rest         = order.filterNot(_ === card)
-        val at           = before.map(rest.indexOf).filter(_ >= 0).getOrElse(rest.size)
-        val (head, tail) = rest.splitAt(at)
-
-        copy(order = head ++ (card :: tail), dragging = None)
-      }
+  def lifted(card: Card): Holding = {
+    if (order.contains(card)) {
+      copy(drag = Some(Drag(card, order.dropWhile(_ =!= card).drop(1).headOption)))
+    } else {
+      this
     }
   }
+
+  /** Puts the lifted card in the slot under the pointer, counted along the hand as it is drawn.
+    *
+    * A slot rather than the card in it, because the cards move as the pointer does. The same slot
+    * gives the same answer however many times the browser reports it, so a report from a slot
+    * that has not been redrawn yet cannot move the card back.
+    */
+  def hovered(slot: Int): Holding = {
+    copy(drag = drag.map { lifted =>
+      lifted.copy(before = order.filterNot(_ === lifted.card).lift(slot))
+    })
+  }
+
+  def dropped: Holding = copy(order = shown, drag = None)
+
+  def released: Holding = copy(drag = None)
 }
 
 object Holding {

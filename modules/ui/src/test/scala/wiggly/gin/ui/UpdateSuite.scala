@@ -25,8 +25,9 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
       Gen.const(Msg.Toggle(card)),
       Gen.oneOf(Sorting.values.toList).map(Msg.Sort(_)),
       Gen.const(Msg.Lift(card)),
-      Gen.const(Msg.Drop(Some(card))),
-      Gen.const(Msg.Drop(None)),
+      Gen.choose(0, held(view).size).map(Msg.Enter(_)),
+      Gen.const(Msg.Drop),
+      Gen.const(Msg.Release),
       Gen.const(Msg.Hover)
     )
   } yield (view, card, msg)
@@ -117,7 +118,9 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
         case Msg.Toggle(chosen) => holding.toggled(chosen, view)
         case Msg.Sort(by)       => holding.sorted(by, view)
         case Msg.Lift(lifted)   => holding.lifted(lifted)
-        case Msg.Drop(before)   => holding.moved(before)
+        case Msg.Enter(slot)    => holding.hovered(slot)
+        case Msg.Drop           => holding.dropped
+        case Msg.Release        => holding.released
         case _                  => holding
       }
       val (model, _) = Update(Model.Playing(seat, view, holding, Some("kept")), msg)

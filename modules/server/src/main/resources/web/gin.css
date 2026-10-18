@@ -42,6 +42,8 @@ h2 { font-size: 1.1rem; }
 
 .slot { transition: transform 0.12s ease; border-radius: 0 0 0.4rem 0.4rem; border-bottom: 0.25rem solid transparent; }
 .slot.selected { transform: translateY(-0.75rem); }
+/* The card in the air is drawn where it would land, faint, so the hand shows the drop before it happens. */
+.slot.lifted { opacity: 0.4; }
 .slot.selected .outline { stroke: var(--ink); stroke-width: 2; }
 .slot.meld-0 { border-bottom-color: var(--meld-0); }
 .slot.meld-1 { border-bottom-color: var(--meld-1); }
