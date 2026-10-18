@@ -62,6 +62,13 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
     }
   }
 
+  /** The server's melds and then its deadwood, each group highest rank first. */
+  private def dealt(view: PlayerView.InPlay): List[Card] = {
+    val groups = view.arrangement.melds.map(_.cards.toList) :+ view.arrangement.deadwood
+
+    groups.flatMap(_.sortBy(card => (-card.rank.order, card.suit.ordinal)))
+  }
+
   private def suitThenRank(card: Card): (Int, Int) = (card.suit.ordinal, card.rank.order)
 
   private def rankThenSuit(card: Card): (Int, Int) = (card.rank.order, card.suit.ordinal)
@@ -75,12 +82,12 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
     first.fold(Holding.of(view))(Holding.of(view).toggled(_, view))
   }
 
-  test("a hand starts in the server's order with nothing chosen") {
+  test("a hand starts in the server's groups, highest rank first in each, with nothing chosen") {
     forall(ViewGen.inPlay) { view =>
       val holding = Holding.of(view)
 
       expect
-        .same(held(view), holding.order)
+        .same(dealt(view), holding.order)
         .and(expect(holding.selected.isEmpty))
         .and(expect(holding.dragging.isEmpty))
     }
@@ -176,7 +183,7 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
 
   test("lifting a card leaves it where it was until it moves over another slot") {
     forall(choices) { case (view, card) =>
-      expect.same(held(view), Holding.of(view).lifted(card).shown)
+      expect.same(dealt(view), Holding.of(view).lifted(card).shown)
     }
   }
 
@@ -186,7 +193,7 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
 
       expect
         .same(slot.min(held(view).size - 1), shown.indexOf(card))
-        .and(expect.same(held(view).filterNot(_ === card), shown.filterNot(_ === card)))
+        .and(expect.same(dealt(view).filterNot(_ === card), shown.filterNot(_ === card)))
     }
   }
 
@@ -221,9 +228,9 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
     }
   }
 
-  test("sorting by melds gives back the server's order") {
+  test("sorting by melds gives back the order the hand started in") {
     forall(runs) { case (view, run) =>
-      expect.same(held(view), played(view, run).sorted(Sorting.ByMelds, view).order)
+      expect.same(dealt(view), played(view, run).sorted(Sorting.ByMelds, view).order)
     }
   }
 

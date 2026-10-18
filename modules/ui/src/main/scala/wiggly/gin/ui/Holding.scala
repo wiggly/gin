@@ -57,7 +57,7 @@ final case class Holding private (
     val arranged = by match {
       case Sorting.ByMelds => Holding.cardsIn(view.arrangement)
       case Sorting.BySuit  => order.sortBy(card => (card.suit.ordinal, -card.rank.order))
-      case Sorting.ByRank  => order.sortBy(card => (-card.rank.order, card.suit.ordinal))
+      case Sorting.ByRank  => Holding.highFirst(order)
     }
 
     copy(order = arranged)
@@ -102,8 +102,12 @@ object Holding {
 
   def of(view: PlayerView.InPlay): Holding = new Holding(cardsIn(view.arrangement), None, None)
 
+  /** The server's groups, each turned to read highest first, as a player holds a fan. */
   private def cardsIn(arrangement: Arrangement): List[Card] =
-    arrangement.melds.flatMap(_.cards.toList) ++ arrangement.deadwood
+    (arrangement.melds.map(_.cards.toList) :+ arrangement.deadwood).flatMap(highFirst)
+
+  private def highFirst(cards: List[Card]): List[Card] =
+    cards.sortBy(card => (-card.rank.order, card.suit.ordinal))
 
   private def discardable(view: PlayerView.InPlay)(card: Card): Boolean =
     Moves.available(view).contains(Move.Discard(card))

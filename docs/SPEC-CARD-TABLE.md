@@ -68,7 +68,7 @@ The constructor is private. These are the only ways to make or change a `Holding
 
 | Operation | What it does |
 | --- | --- |
-| `Holding.of(view)` | The server's order, melds first and then deadwood. Nothing selected or lifted. |
+| `Holding.of(view)` | The server's groups, melds first and then deadwood, with the highest rank first in each group. Nothing selected or lifted. |
 | `holding.reconcile(view)` | Keeps the player's order for the cards still held, drops cards no longer held, and puts new cards last. If the selected card is still a legal discard, keeps the selection. If the lifted card is still held, keeps it, because the other player's moves arrive while a card is in the air. |
 | `holding.sorted(by, view)` | Puts the whole hand in the order `by` names. `ByMelds` reads the melds from `view`. |
 | `holding.lifted(card)` | If the player holds the card, records it as the card being dragged, in the place it already has. |
@@ -84,7 +84,7 @@ properties:
 2. When `selected` holds a card, `Moves.available` offers that card as a `Discard`.
 3. When `dragging` holds a card, that card is in `order`.
 
-`Sorting` is an enum with three cases. `ByMelds` is the server's arrangement, `BySuit` groups by
+`Sorting` is an enum with three cases. `ByMelds` is the order that `Holding.of` gives, `BySuit` groups by
 suit and then orders by rank, and `ByRank` orders by rank and then by suit. Both sorts put the
 higher rank on the left, as a player holds a fan. The suits keep their own order.
 
