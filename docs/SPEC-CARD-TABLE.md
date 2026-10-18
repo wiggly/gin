@@ -86,7 +86,7 @@ properties:
 
 `Sorting` is an enum with three cases. `ByMelds` is the server's arrangement, `BySuit` groups by
 suit and then orders by rank, and `ByRank` orders by rank and then by suit. Both sorts put the
-highest card on the left, as a player holds a fan.
+higher rank on the left, as a player holds a fan. The suits keep their own order.
 
 ## Messages and update
 

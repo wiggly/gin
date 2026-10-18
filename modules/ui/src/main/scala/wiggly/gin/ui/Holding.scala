@@ -56,8 +56,8 @@ final case class Holding private (
   def sorted(by: Sorting, view: PlayerView.InPlay): Holding = {
     val arranged = by match {
       case Sorting.ByMelds => Holding.cardsIn(view.arrangement)
-      case Sorting.BySuit  => order.sorted.reverse
-      case Sorting.ByRank  => order.sortBy(card => (card.rank.order, card.suit.ordinal)).reverse
+      case Sorting.BySuit  => order.sortBy(card => (card.suit.ordinal, -card.rank.order))
+      case Sorting.ByRank  => order.sortBy(card => (-card.rank.order, card.suit.ordinal))
     }
 
     copy(order = arranged)
