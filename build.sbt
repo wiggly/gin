@@ -1,3 +1,4 @@
+import org.scalajs.linker.interface.ModuleKind
 import org.typelevel.sbt.tpolecat.DevMode
 import org.typelevel.scalacoptions.ScalacOptions
 
@@ -18,7 +19,7 @@ ThisBuild / tpolecatDevModeOptions += ScalacOptions.noIndent
 // drives them, so counting them would only depress the figure.
 // The patterns carry no `.scala`: the compiler strips the extension before matching, and the whole
 // path has to match, so a pattern ending in `.scala` silently excludes nothing.
-ThisBuild / coverageExcludedFiles := ".*/server/Main;.*/server/HttpServer"
+ThisBuild / coverageExcludedFiles := ".*/server/Main;.*/server/HttpServer;.*/ui/Main;.*/ui/View;.*/ui/Cards"
 // Floors sit a few points under the measured aggregate (87.83% statement, 57.14% branch) so that
 // ordinary churn does not trip them. They bite on `coverageAggregate`, not on a single module.
 ThisBuild / coverageFailOnMinimum      := true
@@ -43,38 +44,85 @@ lazy val log4catsVersion   = "2.8.0"
 lazy val logbackVersion    = "1.5.38"
 lazy val scalaCheckVersion = "1.20.0"
 lazy val weaverVersion     = "0.13.0"
+lazy val tyrianVersion     = "0.14.0"
+lazy val scalajsDomVersion = "2.8.0"
 
 // Tests are weaver suites: property-based by default, effectful without ceremony.
 lazy val testSettings = Seq(
   libraryDependencies ++= Seq(
-    "org.typelevel"  %% "weaver-cats"       % weaverVersion     % Test,
-    "org.typelevel"  %% "weaver-scalacheck" % weaverVersion     % Test,
-    "org.scalacheck" %% "scalacheck"        % scalaCheckVersion % Test
+    "org.typelevel"  %%% "weaver-cats"       % weaverVersion     % Test,
+    "org.typelevel"  %%% "weaver-scalacheck" % weaverVersion     % Test,
+    "org.scalacheck" %%% "scalacheck"        % scalaCheckVersion % Test
   ),
   testFrameworks += new TestFramework("weaver.framework.CatsEffect")
 )
 
 lazy val commonSettings = testSettings
 
+// scoverage instruments with JVM-only collections, which do not link under Scala.js. The same
+// source is measured on the JVM side of each cross-project, so nothing in core or protocol goes
+// unmeasured; what this costs is a figure for the browser-only code in `ui`, which is tested
+// rather than counted.
+lazy val jsSettings = Seq(coverageEnabled := false)
+
 lazy val root = project
   .in(file("."))
-  .aggregate(core, server)
+  .aggregate(core.jvm, core.js, protocol.jvm, protocol.js, server, ui)
   .settings(
     name           := "wiggly-gin",
     publish / skip := true
   )
 
-lazy val core = project
+lazy val core = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
   .in(file("modules/core"))
   .settings(commonSettings)
+  .jsSettings(jsSettings)
   .settings(
     name := "wiggly-gin-core",
     libraryDependencies ++= Seq(
       // The domain is pure and needs only cats-core. cats-effect is here for the ports, and
       // fs2 for the one port that hands back a stream of a game's states.
-      "org.typelevel" %% "cats-core"   % catsVersion,
-      "org.typelevel" %% "cats-effect" % catsEffectVersion,
-      "co.fs2"        %% "fs2-core"    % fs2Version
+      "org.typelevel" %%% "cats-core"   % catsVersion,
+      "org.typelevel" %%% "cats-effect" % catsEffectVersion,
+      "co.fs2"        %%% "fs2-core"    % fs2Version
+    )
+  )
+
+// The wire format. It sits outside core so that the domain keeps no JSON dependency, and outside
+// server so that the browser speaks the same protocol from the same derived codec.
+lazy val protocol = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("modules/protocol"))
+  .dependsOn(core % "compile->compile;test->test")
+  .settings(commonSettings)
+  .jsSettings(jsSettings)
+  .settings(
+    name                               := "wiggly-gin-protocol",
+    libraryDependencies += "io.circe" %%% "circe-core" % circeVersion
+  )
+
+// The browser. JavaScript only: there is no JVM meaning for a page.
+lazy val ui = project
+  .in(file("modules/ui"))
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(protocol.js % "compile->compile;test->test")
+  .settings(commonSettings)
+  .settings(jsSettings)
+  .settings(
+    name := "wiggly-gin-ui",
+    // One module rather than many. Nothing here is large enough for splitting to pay, and it keeps
+    // the page's script tag and the server's generated resources to one file each.
+    scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
+    // Tyrian exports `launch` rather than a `main`, so the page starts the application and the
+    // linker must not look for an entry point of its own.
+    scalaJSUseMainModuleInitializer := false,
+    libraryDependencies ++= Seq(
+      "io.indigoengine" %%% "tyrian-io"   % tyrianVersion,
+      "org.scala-js"    %%% "scalajs-dom" % scalajsDomVersion,
+      // The browser receives payloads as strings. protocol defines the codecs and needs no parser
+      // of its own, so the artifact that turns a string into Json belongs here.
+      "io.circe" %%% "circe-parser" % circeVersion
     )
   )
 
@@ -82,13 +130,26 @@ lazy val core = project
 // The test->test edge shares core's generators with this module's tests; see README.
 lazy val server = project
   .in(file("modules/server"))
-  .dependsOn(core % "compile->compile;test->test")
+  .dependsOn(protocol.jvm % "compile->compile;test->test")
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .settings(commonSettings)
   .settings(
     name := "wiggly-gin-server",
     // cats-effect's IOApp needs the main thread for correct resource cleanup.
     Compile / run / fork := true,
+    // The browser application is part of the server's resources, so one command still builds one
+    // image and that image carries the UI. fullLinkJS rather than fastLinkJS: this is what ships.
+    Compile / resourceGenerators += Def.task {
+      // Reading the output directory is a setting and does not link anything on its own, so the
+      // link is asked for first. Without that line this copies whatever a previous build left
+      // behind, and after a clean that is nothing at all.
+      val _      = (ui / Compile / fullLinkJS).value
+      val linked = (ui / Compile / fullLinkJS / scalaJSLinkerOutputDirectory).value
+      val into   = (Compile / resourceManaged).value / "web"
+
+      IO.copyDirectory(linked, into, overwrite = true)
+      (into ** "*").get.filter(_.isFile)
+    }.taskValue,
     // The image. sbt-native-packager writes the Dockerfile, the start script and the non-root
     // user, so none of the three is a file anybody has to keep in step with this build.
     Docker / packageName := "wiggly-gin",

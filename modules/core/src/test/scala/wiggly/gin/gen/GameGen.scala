@@ -204,6 +204,45 @@ object GameGen {
     }
   }
 
+  /** A game with a round in play.
+    *
+    * Built rather than filtered. A game that is waiting or over has no round for a move to be
+    * offered in, and a generator that discarded those would be at the mercy of how often a random
+    * walk ends one.
+    */
+  val inPlay: Gen[Game.InPlay] = for {
+    id    <- gameId
+    host  <- token
+    guest <- token
+    first <- deck
+    joined = Game.AwaitingOpponent(id, host).joined(guest, first) match {
+      case Right(playing: Game.InPlay) => playing
+      case other                       => sys.error(s"a joined game was not in play: $other")
+    }
+    steps  <- Gen.choose(0, 12)
+    played <- advanceInPlay(joined, steps)
+  } yield played
+
+  private def advanceInPlay(game: Game.InPlay, remaining: Int): Gen[Game.InPlay] = {
+    legalMoves(game.round) match {
+      case Nil                 => Gen.const(game)
+      case _ if remaining <= 0 => Gen.const(game)
+      case moves               =>
+        for {
+          (move, _) <- Gen.oneOf(moves)
+          next      <- deck
+          stepped = game
+            .played(game.round.onTurn, move, next)
+            .getOrElse(sys.error(s"a legal move was refused: $move"))
+          rest <- stepped match {
+            case playing: Game.InPlay => advanceInPlay(playing, remaining - 1)
+            // The match ended. This game is the last one that still had a round in it.
+            case _ => Gen.const(game)
+          }
+        } yield rest
+    }
+  }
+
   /** A round in progress, some way into its play. */
   def partWayThrough(steps: Int): Gen[GameState] = dealt.flatMap(walk(_, steps))
 

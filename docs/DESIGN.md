@@ -24,18 +24,26 @@ that talks to the outside world sits at the edge, behind an interface the middle
 
 ```mermaid
 flowchart LR
-    HTTP["HTTP client"] --> Routes["http adapter<br/>routes and codecs"]
+    Browser["ui<br/>the browser"] --> Routes
+    HTTP["any HTTP client"] --> Routes["http adapter<br/>routes"]
+    Browser --> Codecs["protocol<br/>the codecs"]
+    Routes --> Codecs
     Routes --> Service["GameService port"]
     Service --> Games["Games<br/>the service"]
     Games --> Domain["domain<br/>the rules"]
+    Codecs --> Domain
     Games --> Out["outbound ports"]
     Out --> Memory["memory adapter<br/>store and events"]
     Out --> Random["random adapter<br/>shuffle and tokens"]
 ```
 
 The middle is the `core` module. It holds the domain and the ports, it is pure, and it names no
-technology at all. The `server` module holds every adapter and the `main` method. Dependencies
-point inward only. The README has the directory layout and the rule for where a new file goes.
+technology at all. `protocol` holds the codecs, `server` holds the JVM adapters and the `main`
+method, and `ui` is the browser. Dependencies point inward only. The README has the directory
+layout and the rule for where a new file goes.
+
+`core` and `protocol` cross-compile to the JVM and to JavaScript. That is what lets the browser
+hold the domain types rather than a second description of them.
 
 The gain is that a choice of technology is a choice you can revisit. A WebSocket adapter is a new
 file beside the event stream rather than a change to the rules. A database store is a second
@@ -337,6 +345,53 @@ the fields. A single-field wrapper derives to `{"value":"..."}` where a client w
 
 When somebody adds a field, a derived product stays right. A hand-written encoder does not.
 
+The codecs live in `protocol` rather than in the http adapter. Two adapters speak this protocol,
+and only one of them is the server. `core` still carries no JSON dependency,
+and `Game` and `GameState` still have no encoder at all.
+
+A decoder exists for every shape the server sends, because the browser has to read them. Each one
+is pinned by a property that encodes a generated value and decodes it back. A meld is rebuilt
+through `Meld.Set.from` and `Meld.Run.from`. A payload naming three cards that are not a meld is
+refused rather than made into one. Decoding is the one door that invariant has left.
+
+## The browser
+
+`ui` is a second driving adapter. It is a Tyrian application, which is the Elm architecture on
+cats-effect: a model, a message type, a pure `update`, a pure `view`, and subscriptions.
+
+The model has three cases. The player holds no seat, the player holds a seat that no view reached
+yet, or the player is seated with a view. The third keeps the `PlayerView` exactly as the server
+sent it. The client re-models nothing, because a redaction the client re-derives is a
+redaction with two authors.
+
+Once a player is seated, the screens are that view's own cases and no others. The browser holds no
+state the server does not have, and a token is never drawn on any screen.
+
+Which moves are available to a player is `Moves.available`, in `core/domain`. The browser puts a
+button on every move it returns, and the server accepts every move it returns, because both read
+the same function. A property pins it against the transition function itself: for any round in
+play, the moves offered are exactly the moves the rules accept.
+
+Tyrian ships a subscription for WebSockets and none for server-sent events, so the event stream
+needs a small facade over `dom.EventSource`. It is built with `Sub.make` and its
+acquire-and-release pair, so a change of game closes the connection. A dropped stream is not
+reported, because a browser reconnects one on its own.
+
+The application's own paths live under `/play`, not the whole of `/`. A fallback that answers
+every unmatched path also answers the ones this server already promises a JSON 404 for. A client
+then cannot tell a missing endpoint from a page. `GinApi` states the order rather than leaving it
+to whichever route matches first: the API and `/health` both answer before the browser application
+does.
+
+An sbt resource generator copies the linker output into the server's resources. One command still
+builds one image, and that image carries the UI. Serving the page from the same origin as the API
+is what means no CORS is needed.
+
+The seat goes in `sessionStorage`, keyed by game, because a reload that loses the token loses the
+game. What a seat is written down as is kept apart from the storage it is written to. The first is
+where a mistake can hide, so it is tested. The second is two calls into the browser, which no unit
+test reaches without a DOM.
+
 ## Transport and identity
 
 The transport is REST for the moves and server-sent events for the state. A move is a POST with a
@@ -414,7 +469,10 @@ has somewhere to be recorded.
 - A persistent `GameRepository` adapter, once the in-memory one is outgrown. It is the same port, so
   nothing above it changes.
 - A WebSocket adapter over `GameEvents`, for a client that wants one connection for everything.
-- A lobby, with the accounts that making one useful implies.
+- A lobby, with the accounts that making one useful implies. A shared link already finds a game,
+  so what a lobby adds is finding one nobody sent you.
 - Middleware in `GinApi` for CORS, rate limiting and a request id.
 - Publishing the image to a registry, with the tagging, signing and scanning that publishing an
   artefact for somebody else to pull implies.
+
+Smaller open items from finished work are in [the follow-ups](FOLLOW-UPS.md).

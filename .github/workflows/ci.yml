@@ -53,6 +53,10 @@ jobs:
             sleep 1
           done
           curl --silent --fail http://localhost:8080/health
+          # /health answering proves the server started. This proves the browser application was
+          # linked into the image, which is a separate thing and a separate way to break.
+          curl --silent --fail http://localhost:8080/ | grep -q 'id="app"'
+          curl --silent --fail --output /dev/null http://localhost:8080/main.js
           docker rm --force gin
 
   # A separate job, because it needs Node rather than a JVM and finishes in seconds. It runs

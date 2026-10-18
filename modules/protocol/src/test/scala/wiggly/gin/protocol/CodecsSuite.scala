@@ -1,4 +1,4 @@
-package wiggly.gin.server.adapter.http
+package wiggly.gin.protocol
 
 import cats.implicits.*
 import io.circe.Json
@@ -8,11 +8,60 @@ import weaver.scalacheck.Checkers
 import wiggly.gin.core.domain.*
 import wiggly.gin.core.domain.Rank.*
 import wiggly.gin.core.domain.Suit.*
-import wiggly.gin.gen.GameGen
+import wiggly.gin.core.port.Credentials
+import wiggly.gin.gen.{GameGen, HandGen}
 
 import Codecs.given
 
 object CodecsSuite extends SimpleIOSuite with Checkers {
+
+  /** The browser reads every shape the server writes, so each one has to survive the trip back.
+    *
+    * These are properties rather than examples because the claim is about every value, and a
+    * decoder that agrees with its encoder on one hand-picked case is not worth much.
+    */
+  test("a view of a game survives the trip out and back") {
+    forall(GameGen.gamePlayed(20)) { game =>
+      val view: PlayerView = PlayerView.of(game, Player.One)
+
+      expect.eql(Right(view), view.asJson.as[PlayerView])
+    }
+  }
+
+  test("credentials survive the trip out and back") {
+    forall(GameGen.gameId.flatMap(id => GameGen.token.map(Credentials(id, Player.Two, _)))) {
+      seat =>
+        expect.eql(Right(seat), seat.asJson.as[Credentials])
+    }
+  }
+
+  test("an arrangement survives the trip out and back, extra field and all") {
+    forall(HandGen.hand) { cards =>
+      val best = Arrangement.best(cards)
+
+      expect.eql(Right(best), best.asJson.as[Arrangement])
+    }
+  }
+
+  test("a finished round survives the trip out and back") {
+    forall(GameGen.walked()) { round =>
+      round match {
+        case finished: GameState.Finished =>
+          val result = RoundResult.of(finished)
+          expect.eql(Right(result), result.asJson.as[RoundResult])
+        case _ => success
+      }
+    }
+  }
+
+  pureTest("three cards that are not a meld are refused rather than made into one") {
+    val notARun = Json.obj(
+      "kind"  -> Json.fromString("run"),
+      "cards" -> List(Card(Ace, Spades), Card(Five, Hearts), Card(King, Clubs)).asJson
+    )
+
+    expect(notARun.as[Meld].isLeft)
+  }
 
   pureTest("a card is its rank and its suit, spelled out") {
     expect.eql(

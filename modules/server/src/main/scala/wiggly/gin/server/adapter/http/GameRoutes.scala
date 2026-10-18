@@ -24,7 +24,8 @@ import wiggly.gin.core.port.GameService
 
 import scala.concurrent.duration.FiniteDuration
 
-import Codecs.given
+import wiggly.gin.protocol.Codecs
+import wiggly.gin.protocol.Codecs.given
 
 /** The routes a client plays through.
   *
