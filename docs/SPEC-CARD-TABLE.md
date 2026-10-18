@@ -68,7 +68,7 @@ The constructor is private. These are the only ways to make or change a `Holding
 
 | Operation | What it does |
 | --- | --- |
-| `Holding.of(view)` | The server's groups, melds first and then deadwood, with the highest rank first in each group. Nothing selected or lifted. |
+| `Holding.of(view)` | The server's groups with the highest rank first in each group. The melds come first, ordered by their highest rank, and then the deadwood. Melds with the same highest rank keep the server's order. Nothing selected or lifted. |
 | `holding.reconcile(view)` | Keeps the player's order for the cards still held, drops cards no longer held, and puts new cards last. If the selected card is still a legal discard, keeps the selection. If the lifted card is still held, keeps it, because the other player's moves arrive while a card is in the air. |
 | `holding.sorted(by, view)` | Puts the whole hand in the order `by` names. `ByMelds` reads the melds from `view`. |
 | `holding.lifted(card)` | If the player holds the card, records it as the card being dragged, in the place it already has. |

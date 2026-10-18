@@ -102,9 +102,14 @@ object Holding {
 
   def of(view: PlayerView.InPlay): Holding = new Holding(cardsIn(view.arrangement), None, None)
 
-  /** The server's groups, each turned to read highest first, as a player holds a fan. */
-  private def cardsIn(arrangement: Arrangement): List[Card] =
-    (arrangement.melds.map(_.cards.toList) :+ arrangement.deadwood).flatMap(highFirst)
+  /** The server's groups turned to read highest first, as a player holds a fan: the melds by their
+    * top rank, then the deadwood. Melds that tie keep the server's order.
+    */
+  private def cardsIn(arrangement: Arrangement): List[Card] = {
+    val melds = arrangement.melds.sortBy(meld => -meld.cards.map(_.rank.order).maximum)
+
+    (melds.map(_.cards.toList) :+ arrangement.deadwood).flatMap(highFirst)
+  }
 
   private def highFirst(cards: List[Card]): List[Card] =
     cards.sortBy(card => (-card.rank.order, card.suit.ordinal))

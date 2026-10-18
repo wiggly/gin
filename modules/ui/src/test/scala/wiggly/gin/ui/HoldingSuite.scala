@@ -62,9 +62,13 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
     }
   }
 
-  /** The server's melds and then its deadwood, each group highest rank first. */
+  /** The server's melds, highest top rank first, and then its deadwood. Each group reads high to
+    * low.
+    */
   private def dealt(view: PlayerView.InPlay): List[Card] = {
-    val groups = view.arrangement.melds.map(_.cards.toList) :+ view.arrangement.deadwood
+    val melds =
+      view.arrangement.melds.map(_.cards.toList).sortBy(cards => -cards.map(_.rank.order).max)
+    val groups = melds :+ view.arrangement.deadwood
 
     groups.flatMap(_.sortBy(card => (-card.rank.order, card.suit.ordinal)))
   }
@@ -82,7 +86,7 @@ object HoldingSuite extends SimpleIOSuite with Checkers {
     first.fold(Holding.of(view))(Holding.of(view).toggled(_, view))
   }
 
-  test("a hand starts in the server's groups, highest rank first in each, with nothing chosen") {
+  test("a hand starts with the melds by their top rank, then the deadwood, all high to low") {
     forall(ViewGen.inPlay) { view =>
       val holding = Holding.of(view)
 
