@@ -156,15 +156,18 @@ The tests are property-based by default.
 | Suite | What it states |
 | --- | --- |
 | `PlayerNameSuite` | `from` accepts exactly the trimmed strings of 1 to 20 characters with no control characters. |
-| `LobbySuite` | Opens that outnumber closes, with no take after the last open, list a row. Nothing else lists a row. `listings` is oldest first. `closed` and `taken` on an unknown id change nothing. |
+| `LobbySuite` | The lobby matches a reference count per game. An open adds one. A close takes one away, but never below zero. A take sets it to zero. A game is listed while its count is above zero. `listings` is oldest first. `closed` and `taken` on an unknown id change nothing. |
 | `GameSuite` and the round suites | `joined` builds `Names(host, guest)`. Settling a round keeps the names. |
 | `PlayerViewSuite` | Every view carries the game's names unchanged. |
-| A presence suite in `core` | Under `TestControl`, against the memory adapters. A host stream lists the game. Cancelling it removes the row. Two host streams keep the row until both close. A join removes the row. A join between the read and the open also removes it. A guest stream lists nothing. |
+| A presence suite in `server` | Against the memory adapters, with `TestControl` for the clock. A host stream lists the game. Cancelling it removes the row. Two host streams keep the row until both close. A join removes the row. A join between the read and the open also removes it. A guest stream lists nothing. |
 | The route suites | The `400` for a missing or invalid name. The lobby stream's first event and its heartbeat. |
 | The `ui` suites | The pure `update` for the name box, the lobby events, and a refused join. |
 
 One property spans the two stores: every listed id is a game that the repository holds as
 `AwaitingOpponent`. It lives in the presence suite.
+
+The presence suite is in `server` because it needs a live event stream. The fake in `core`
+replays a finite history, so a host's stream there closes as soon as it opens.
 
 ## Decisions
 
