@@ -1,6 +1,6 @@
 package wiggly.gin.server
 
-import cats.effect.IO
+import cats.effect.{Deferred, FiberIO, IO}
 import cats.effect.testkit.TestControl
 import cats.implicits.*
 import fs2.Stream
@@ -51,6 +51,16 @@ object LobbyPresenceSuite extends SimpleIOSuite {
   private def onFirstView(table: Table, views: Stream[IO, PlayerView]): IO[List[Listing]] =
     views.evalMap(_ => now(table)).take(1).compile.lastOrError.timeout(5.seconds)
 
+  /** Starts the host's stream and returns once its first view has arrived, by which time the stream
+    * has made its row.
+    */
+  private def watchingSince(table: Table, seat: Credentials): IO[FiberIO[Unit]] = for {
+    views   <- watching(table, seat)
+    arrived <- Deferred[IO, Unit]
+    fiber   <- views.evalTap(_ => arrived.complete(())).compile.drain.start
+    _       <- arrived.get.timeout(5.seconds)
+  } yield fiber
+
   /** The one rule that spans both stores: every listed game is one the store holds as waiting. */
   private def agrees(table: Table): IO[Expectations] = for {
     listings <- now(table)
@@ -79,9 +89,8 @@ object LobbyPresenceSuite extends SimpleIOSuite {
     for {
       table  <- table
       host   <- table.service.create(ada)
-      first  <- watching(table, host).flatMap(_.compile.drain.start)
-      second <- watching(table, host).flatMap(_.compile.drain.start)
-      _      <- until(table)(_.nonEmpty)
+      first  <- watchingSince(table, host)
+      second <- watchingSince(table, host)
       _      <- first.cancel
       one    <- now(table)
       _      <- second.cancel
