@@ -68,3 +68,44 @@ None of these caused a fault. Each one leaves a plausible fault with no failing 
   at a browser covers it.
 - `ViewGen.stockDrawn` in `modules/core/src/test/scala/wiggly/gin/gen/ViewGen.scala` fails on a rare
   walk: a round that ends before any draw from the stock. The error names the game.
+
+## 10. The lobby board is written on every move
+
+`Games.watch` in `modules/core/src/main/scala/wiggly/gin/core/service/Games.scala` taps the taken
+write for every in-play state. Every move by a host writes to the board and wakes every lobby
+watcher before `.changes` drops it. Stop tapping after the first game that is not waiting.
+
+## 11. A name can look empty or reorder text
+
+`PlayerName.from` in `modules/core/src/main/scala/wiggly/gin/core/domain/PlayerName.scala` trims
+characters up to U+0020 only. A name of non-breaking or zero-width characters is accepted, and so
+are bidi and other format characters. The lobby row isolates the name for now. Consider requiring
+one visible character.
+
+## 12. Anyone can fill the lobby
+
+Anyone can create games and hold event streams open, and the list has no cap. See
+`LobbyRoutes.scala` and `Lobbies.scala`. Decide on a cap for the list and for the streams.
+
+## 13. Lobby test gaps
+
+None of these caused a fault.
+
+- `GameRoutesSuite`: the title that says it "creates nothing" claims more than the test shows.
+- `LobbySuite`: the host is always "Ada", so nothing tests that a re-open keeps the host.
+- `LobbyPresenceSuite`: the `agrees` check in the join test runs over an empty lobby.
+- `LobbyPresenceSuite`: the guest stream test cannot tell a wrong listing from none.
+- `LobbyRoutesSuite`: the opening test assumes the first chunk holds the whole event.
+- `LobbyRoutesSuite`: no test shows that a change to the board sends a new list.
+- `UpdateSuite`: the `JoinListed` test only checks that a command was sent. A wrong id passes.
+- `ViewSuite`: the "waiting 2 min" test passes if any one row says it.
+- `ViewSuite`: "scoreboard names both players" renders the whole table.
+
+## 14. Lobby polish
+
+- `Lobby.Row` and `rows` could be `private[domain]`.
+- The `ListedAt` codec comment does not name the case that it allows.
+- `Codecs.scala` and `Events.scala` have scaladoc lines over 100 columns.
+- `docs/openapi.yaml`: the `info.description` line is long, and `400` comes before the 2xx cases.
+- The name input in `View.scala` has no `maxlength`.
+- The age colour in `gin.css` is a literal.
