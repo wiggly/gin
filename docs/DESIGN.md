@@ -21,8 +21,10 @@ points, the match ends.
 ## The shape of the system
 
 The code follows the hexagonal pattern, which is also called ports and adapters. The pattern puts
-the rules of the game in the middle, with no knowledge of HTTP, of storage, or of time. Everything
-that talks to the outside world sits at the edge, behind an interface the middle defines.
+the rules of the game in the middle, with no knowledge of HTTP or of storage. The middle knows of
+time only through the `Clock` typeclass from cats-effect, because `Games` stamps the moment a game
+starts waiting. `Clock` names no concrete effect, so the middle stays pure. Everything that talks to
+the outside world sits at the edge, behind an interface the middle defines.
 
 ```mermaid
 flowchart LR
@@ -31,10 +33,15 @@ flowchart LR
     Browser --> Codecs["protocol<br/>the codecs"]
     Routes --> Codecs
     Routes --> Service["GameService port"]
+    Routes --> LobbyPort["LobbyService port"]
     Service --> Games["Games<br/>the service"]
+    LobbyPort --> Lobbies["Lobbies<br/>the lobby service"]
+    Games --> Board
+    Lobbies --> Board["LobbyBoard<br/>the lobby"]
     Games --> Domain["domain<br/>the rules"]
     Codecs --> Domain
     Games --> Out["outbound ports"]
+    Lobbies --> Domain
     Out --> Memory["memory adapter<br/>store and events"]
     Out --> Random["random adapter<br/>shuffle and tokens"]
 ```
@@ -236,7 +243,7 @@ stateDiagram-v2
 Two functions move a game on, and both take a deck, because both can deal one.
 
 ```scala
-def joined(guest: Token, deck: Deck): Either[GameFault, Game]
+def joined(guest: Token, guestName: PlayerName, deck: Deck): Either[GameFault, Game]
 def played(player: Player, move: Move, next: Deck): Either[GameFault, Game]
 ```
 
