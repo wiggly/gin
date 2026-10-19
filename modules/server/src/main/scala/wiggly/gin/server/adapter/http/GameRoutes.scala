@@ -2,7 +2,6 @@ package wiggly.gin.server.adapter.http
 
 import cats.effect.Temporal
 import cats.syntax.all.*
-import fs2.Stream
 import io.circe.syntax.*
 import io.circe.{Encoder, Json}
 import org.http4s.circe.CirceEntityDecoder.circeEntityDecoder
@@ -16,10 +15,9 @@ import org.http4s.{
   HttpRoutes,
   Request,
   Response,
-  ServerSentEvent,
   Status
 }
-import wiggly.gin.core.domain.{GameFault, GameId, Move, PlayerName, PlayerView, Token}
+import wiggly.gin.core.domain.{GameFault, GameId, Move, PlayerName, Token}
 import wiggly.gin.core.port.GameService
 
 import scala.concurrent.duration.FiniteDuration
@@ -82,21 +80,6 @@ object GameRoutes {
           BadRequest(Json.obj("error" -> Json.fromString("malformed-name")))
       }
 
-    /** The stream a watcher holds open: that player's view of the game as it stands, then one for
-      * every state it reaches afterwards.
-      *
-      * The comments are there because an idle connection through a proxy is dropped, and a
-      * dropped connection looks to a player like a game that stopped responding.
-      */
-    def watching(views: Stream[F, PlayerView]): Stream[F, ServerSentEvent] = {
-      val states = views.map(view => ServerSentEvent(data = Some(view.asJson.noSpaces)))
-      val beats  = Stream
-        .awakeEvery[F](heartbeat)
-        .as(ServerSentEvent(data = None, comment = Some("still here")))
-
-      states.merge(beats)
-    }
-
     HttpRoutes.of[F] {
       case request @ POST -> Root / "games" =>
         introduced(request) { name =>
@@ -121,7 +104,7 @@ object GameRoutes {
       case request @ GET -> Root / "games" / id / "events" =>
         withToken(request) { token =>
           service.watch(GameId(id), token).flatMap {
-            case Right(views) => Ok(watching(views))
+            case Right(views) => Ok(EventStreams(views, heartbeat))
             case Left(fault)  => refused(fault)
           }
         }

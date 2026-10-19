@@ -14,7 +14,7 @@ import wiggly.gin.core.port.Credentials
   * beside its fields, and a single-field wrapper derives to `{"value":"…"}` rather than the string
   * it wraps.
   *
-  * Only `PlayerView` and `Credentials` have encoders that leave the building. A `Game` and a
+  * Only `PlayerView`, `Credentials` and `Listing` have encoders that leave the building. A `Game` and a
   * `GameState` deliberately have none: the one shape a game may be seen in is a view, and the
   * absence of a codec is what stops the other shapes reaching a client by accident.
   */
@@ -77,6 +77,13 @@ object Codecs {
 
   given Encoder[Introduction] = Encoder.AsObject.derived
   given Decoder[Introduction] = Decoder.derived
+
+  /** The number of milliseconds, which is what a browser's `Date` is built from. */
+  given Encoder[ListedAt] = Encoder.encodeLong.contramap(_.millis)
+  given Decoder[ListedAt] = Decoder.decodeLong.map(ListedAt.apply)
+
+  given Encoder[Listing] = Encoder.AsObject.derived
+  given Decoder[Listing] = Decoder.derived
 
   given Encoder[Card] = Encoder.AsObject.derived
   given Decoder[Card] = Decoder.derived

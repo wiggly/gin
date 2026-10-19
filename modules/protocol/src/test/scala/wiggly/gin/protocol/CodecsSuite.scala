@@ -3,6 +3,7 @@ package wiggly.gin.protocol
 import cats.implicits.*
 import io.circe.Json
 import io.circe.syntax.*
+import org.scalacheck.Gen
 import weaver.SimpleIOSuite
 import weaver.scalacheck.Checkers
 import wiggly.gin.core.domain.*
@@ -186,5 +187,28 @@ object CodecsSuite extends SimpleIOSuite with Checkers {
     forall(NameGen.name) { name =>
       expect.eql(Right(Introduction(name)), Introduction(name).asJson.as[Introduction])
     }
+  }
+
+  pureTest("a listing is its game, its host's name and when it was listed") {
+    val listing = Listing(GameId("g1"), NameGen.named("Ada"), ListedAt(1760000000000L))
+
+    expect.eql(
+      listing.asJson,
+      Json.obj(
+        "id"    -> Json.fromString("g1"),
+        "host"  -> Json.fromString("Ada"),
+        "since" -> Json.fromLong(1760000000000L)
+      )
+    )
+  }
+
+  test("a listing survives the trip out and back") {
+    val listings = for {
+      id    <- GameGen.gameId
+      host  <- NameGen.name
+      since <- Gen.choose(0L, 4000000000000L)
+    } yield Listing(id, host, ListedAt(since))
+
+    forall(listings)(listing => expect.eql(Right(listing), listing.asJson.as[Listing]))
   }
 }

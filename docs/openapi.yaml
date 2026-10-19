@@ -30,6 +30,8 @@ tags:
     description: Liveness, for load balancers and container orchestrators.
   - name: games
     description: The routes a client plays a game through.
+  - name: lobby
+    description: The games waiting for an opponent.
 
 paths:
   /health:
@@ -245,6 +247,30 @@ paths:
           $ref: "#/components/responses/NotAPlayer"
         "404":
           $ref: "#/components/responses/NoSuchGame"
+
+  /api/v1/lobby/events:
+    get:
+      tags: [lobby]
+      operationId: watchLobby
+      summary: Stream the games waiting for an opponent
+      security: []
+      description: |
+        The stream opens with the list as it stands, and then sends the whole list again every
+        time it changes. A game is listed while its host holds the game's own event stream open
+        and nobody joined it. The list is oldest first.
+      responses:
+        "200":
+          description: |
+            An open event stream. Each event carries a JSON array of `Listing` on its `data:`
+            line. An idle stream sends a comment line every GIN_HTTP_EVENT_HEARTBEAT.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                data: [{"id":"c0ffee","host":"Ada","since":1760000000000}]
+
+                : still here
 
 components:
 
@@ -553,6 +579,20 @@ components:
         name:
           $ref: "#/components/schemas/PlayerName"
       required: [name]
+
+    Listing:
+      type: object
+      description: One game in the lobby.
+      properties:
+        id:
+          type: string
+        host:
+          $ref: "#/components/schemas/PlayerName"
+        since:
+          type: integer
+          format: int64
+          description: When the host's stream opened, in milliseconds since the Unix epoch.
+      required: [id, host, since]
 
     Move:
       description: |
