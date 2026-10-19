@@ -22,6 +22,7 @@ import wiggly.gin.core.port.{Credentials, GameService}
 import wiggly.gin.core.service.Games
 import wiggly.gin.fake.{CountingSecrets, FakeEvents, FakeRepository, FixedShuffler}
 import wiggly.gin.gen.NameGen
+import wiggly.gin.server.adapter.memory.MemoryLobbyBoard
 
 import scala.concurrent.duration.*
 
@@ -32,8 +33,9 @@ object GameRoutesSuite extends SimpleIOSuite {
   private def table: IO[Table] = for {
     repository <- FakeRepository[IO]
     events     <- FakeEvents[IO]
+    board      <- MemoryLobbyBoard[IO]
     secrets    <- CountingSecrets[IO]
-    service = Games[IO](repository, events, new FixedShuffler[IO](Deck.ordered), secrets)
+    service = Games[IO](repository, events, board, new FixedShuffler[IO](Deck.ordered), secrets)
   } yield Table(GameRoutes[IO](service, 15.seconds).orNotFound, service)
 
   private def at(path: String): Uri = Uri.unsafeFromString(path)

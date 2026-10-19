@@ -7,7 +7,7 @@ import weaver.SimpleIOSuite
 import weaver.scalacheck.Checkers
 import wiggly.gin.core.domain.*
 import wiggly.gin.core.port.{Credentials, GameService}
-import wiggly.gin.fake.{CountingSecrets, FakeEvents, FakeRepository, FixedShuffler}
+import wiggly.gin.fake.{CountingSecrets, FakeEvents, FakeLobbyBoard, FakeRepository, FixedShuffler}
 import wiggly.gin.gen.{GameGen, NameGen}
 
 object GamesSuite extends SimpleIOSuite with Checkers {
@@ -15,17 +15,20 @@ object GamesSuite extends SimpleIOSuite with Checkers {
   private final case class Table(
       service: GameService[IO],
       repository: FakeRepository[IO],
-      events: FakeEvents[IO]
+      events: FakeEvents[IO],
+      board: FakeLobbyBoard[IO]
   )
 
   private def table(deck: Deck = Deck.ordered): IO[Table] = for {
     repository <- FakeRepository[IO]
     events     <- FakeEvents[IO]
+    board      <- FakeLobbyBoard[IO]
     secrets    <- CountingSecrets[IO]
   } yield Table(
-    Games[IO](repository, events, new FixedShuffler[IO](deck), secrets),
+    Games[IO](repository, events, board, new FixedShuffler[IO](deck), secrets),
     repository,
-    events
+    events,
+    board
   )
 
   private val ada   = NameGen.named("Ada")
@@ -49,6 +52,44 @@ object GamesSuite extends SimpleIOSuite with Checkers {
 
   private def cardsOf(arrangement: Arrangement): List[Card] =
     arrangement.melds.flatMap(_.cards.toList) ++ arrangement.deadwood
+
+  test("a host watching a waiting game lists it while the stream is open, and not after") {
+    for {
+      table   <- table()
+      host    <- table.service.create(ada)
+      watched <- table.service.watch(host.id, host.token)
+      _       <- watched.toOption.traverse_(_.compile.drain)
+      history <- table.board.history
+    } yield expect(history.exists(_.listings.map(l => (l.id, l.host)) == List((host.id, ada)))).and(
+      expect.eql(history.last.listings, List.empty[Listing])
+    )
+  }
+
+  test("creating, joining and a guest's watch leave the lobby alone") {
+    for {
+      (table, _, guest) <- seated()
+      watched           <- table.service.watch(guest.id, guest.token)
+      _                 <- watched.toOption.traverse_(_.compile.drain)
+      history           <- table.board.history
+    } yield expect.eql(history.size, 1)
+  }
+
+  test("a host watching a game already in play does not list it") {
+    for {
+      (table, host, _) <- seated()
+      watched          <- table.service.watch(host.id, host.token)
+      _                <- watched.toOption.traverse_(_.compile.drain)
+      history          <- table.board.history
+    } yield expect.eql(history.size, 1)
+  }
+
+  test("the lobby a client reads is the board's") {
+    for {
+      board    <- FakeLobbyBoard[IO]
+      _        <- board.change(_.opened(GameId("g1"), ada, ListedAt(1)))
+      listings <- Lobbies[IO](board).listings.compile.lastOrError
+    } yield expect.eql(listings, List(Listing(GameId("g1"), ada, ListedAt(1))))
+  }
 
   test("creating a game stores one waiting for an opponent and names the host") {
     for {

@@ -50,9 +50,10 @@ lazy val scalajsDomVersion = "2.8.0"
 // Tests are weaver suites: property-based by default, effectful without ceremony.
 lazy val testSettings = Seq(
   libraryDependencies ++= Seq(
-    "org.typelevel"  %%% "weaver-cats"       % weaverVersion     % Test,
-    "org.typelevel"  %%% "weaver-scalacheck" % weaverVersion     % Test,
-    "org.scalacheck" %%% "scalacheck"        % scalaCheckVersion % Test
+    "org.typelevel"  %%% "cats-effect-testkit" % catsEffectVersion % Test,
+    "org.typelevel"  %%% "weaver-cats"         % weaverVersion     % Test,
+    "org.typelevel"  %%% "weaver-scalacheck"   % weaverVersion     % Test,
+    "org.scalacheck" %%% "scalacheck"          % scalaCheckVersion % Test
   ),
   testFrameworks += new TestFramework("weaver.framework.CatsEffect")
 )
