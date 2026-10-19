@@ -67,3 +67,7 @@ h2 { font-size: 1.1rem; }
 
 .previous { margin-top: 1.5rem; border-top: 1px solid var(--line); }
 .error { margin-top: 1rem; color: var(--red); }
+
+.lobby ul { list-style: none; margin: 0; padding: 0; }
+.lobby .listing { display: flex; align-items: center; gap: 1rem; margin: 0.4rem 0; }
+.lobby .age { color: #6b665b; }

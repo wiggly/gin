@@ -5,6 +5,8 @@ import org.scalajs.dom
 import tyrian.*
 import wiggly.gin.core.domain.GameId
 
+import scala.concurrent.duration.*
+import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 /** The browser application.
@@ -25,7 +27,16 @@ object Main extends TyrianIOApp[Msg, Model] {
     arriving.flatMap(id => Seat.recall(GameId(id))) match {
       case Some(seat) => (Model.Connecting(seat), Cmd.None)
       case None       =>
-        (Model.Start(Profile.recall.getOrElse(""), arriving.getOrElse(""), None), Cmd.None)
+        (
+          Model.Start(
+            Profile.recall.getOrElse(""),
+            arriving.getOrElse(""),
+            Nil,
+            js.Date.now().toLong,
+            None
+          ),
+          Cmd.None
+        )
     }
   }
 
@@ -48,7 +59,10 @@ object Main extends TyrianIOApp[Msg, Model] {
       case Model.Connecting(seat)       => Events.watch(seat)
       case Model.Seated(seat, _, _)     => Events.watch(seat)
       case Model.Playing(seat, _, _, _) => Events.watch(seat)
-      case Model.Start(_, _, _)         => Sub.None
+      case Model.Start(_, _, _, _, _)   =>
+        Events.lobby |+| Sub
+          .every[IO](30.seconds, "lobby-clock")
+          .map(date => Msg.Tick(date.getTime().toLong))
     }
   }
 }

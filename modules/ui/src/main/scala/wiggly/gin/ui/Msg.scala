@@ -1,6 +1,6 @@
 package wiggly.gin.ui
 
-import wiggly.gin.core.domain.{Card, Move, PlayerView}
+import wiggly.gin.core.domain.{Card, GameId, Listing, Move, PlayerView}
 import wiggly.gin.core.port.Credentials
 
 /** What the person did, and what came back.
@@ -13,6 +13,9 @@ enum Msg {
   case JoiningChanged(id: String)
   case Create
   case Join
+  case Listed(listings: List[Listing])
+  case Tick(now: Long)
+  case JoinListed(id: GameId)
   case Play(move: Move)
   case Took(credentials: Credentials)
   case Saw(view: PlayerView)

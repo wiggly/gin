@@ -8,7 +8,7 @@ import weaver.SimpleIOSuite
 import weaver.scalacheck.Checkers
 import wiggly.gin.core.domain.*
 import wiggly.gin.core.port.Credentials
-import wiggly.gin.gen.{NameGen, ViewGen}
+import wiggly.gin.gen.{GameGen, NameGen, ViewGen}
 import wiggly.gin.gen.ViewGen.held
 
 object ViewSuite extends SimpleIOSuite with Checkers {
@@ -21,7 +21,7 @@ object ViewSuite extends SimpleIOSuite with Checkers {
     new PlayerView.AwaitingOpponent(GameId("g1"), Player.One, NameGen.named("Ada"))
 
   pureTest("the start screen offers both ways in") {
-    val rendered = drawn(Model.Start("", "", None))
+    val rendered = drawn(Model.Start("", "", Nil, 0, None))
 
     expect(rendered.contains("Create a game"))
       .and(expect(rendered.contains("Join")))
@@ -291,6 +291,30 @@ object ViewSuite extends SimpleIOSuite with Checkers {
     card <- Gen.oneOf(held(view))
     slot <- Gen.choose(0, held(view).size)
   } yield (view, card, slot)
+
+  test("every game in the lobby shows its host, how long it waited, and a way to join it") {
+    val listings = Gen.listOf(for {
+      id   <- GameGen.gameId
+      host <- NameGen.name
+    } yield Listing(id, host, ListedAt(0)))
+
+    forall(listings) { lobby =>
+      val rendered = drawn(Model.Start("Ada", "", lobby, 120000, None))
+      val joins    = "Join ".r.findAllIn(rendered).size
+
+      expect(lobby.forall(listing => rendered.contains(listing.host.value)))
+        .and(expect(lobby.isEmpty || rendered.contains("waiting 2 min")))
+        .and(expect.same(lobby.size, joins))
+    }
+  }
+
+  pureTest("an empty lobby says how to fill it") {
+    expect(drawn(Model.Start("Ada", "", Nil, 0, None)).contains("Nobody is waiting"))
+  }
+
+  pureTest("the waiting screen says that the game is in the lobby") {
+    expect(drawn(Model.Seated(seat, waiting, None)).contains("in the lobby"))
+  }
 
   private def playing(view: PlayerView.InPlay): Model =
     Model.Playing(seat, view, Holding.of(view), None)

@@ -35,6 +35,7 @@ object View {
         Aria.ariaLabel := "your name"
       ),
       button(onClick(Msg.Create))(text("Create a game")),
+      lobby(model.lobby, model.now),
       p(text("or join one you were sent:")),
       input(
         value := model.joining,
@@ -43,6 +44,22 @@ object View {
       ),
       button(onClick(Msg.Join))(text("Join")),
       problem(model.error)
+    )
+  }
+
+  private def lobby(listings: List[Listing], now: Long): Html[Msg] = {
+    val rows = listings.map { listing =>
+      li(cls := "listing")(
+        span(cls := "host")(text(listing.host.value)),
+        span(cls := "age")(text(Waiting.age(listing.since, now))),
+        button(onClick(Msg.JoinListed(listing.id)))(text(s"Join ${listing.host.value}"))
+      )
+    }
+
+    div(cls := "lobby")(
+      h2(text("Games waiting for a player")),
+      if (rows.isEmpty) p(text("Nobody is waiting. Create a game and it shows here."))
+      else ul(rows)
     )
   }
 
@@ -60,7 +77,7 @@ object View {
     div(cls := "waiting")(
       h1(text("Waiting for the other player")),
       p(text(s"You are ${view.name.value}.")),
-      p(text("Send them this link:")),
+      p(text("Your game is in the lobby. Or send this link:")),
       code(cls := "game-id")(text(Seat.linkTo(view.id))),
       p(cls := "or")(text(s"or the game id on its own: ${view.id.value}")),
       problem(error)

@@ -41,7 +41,7 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
   }
 
   pureTest("taking a seat moves off the start screen") {
-    val (model, _) = Update(Model.Start("", "", None), Msg.Took(seat))
+    val (model, _) = Update(Model.Start("", "", Nil, 0, None), Msg.Took(seat))
     expect.same(Model.Connecting(seat), model)
   }
 
@@ -61,18 +61,18 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
   }
 
   pureTest("a failure before a seat exists stays on the start screen") {
-    val (model, _) = Update(Model.Start("", "g2", None), Msg.Failed("nope"))
-    expect.same(Model.Start("", "g2", Some("nope")), model)
+    val (model, _) = Update(Model.Start("", "g2", Nil, 0, None), Msg.Failed("nope"))
+    expect.same(Model.Start("", "g2", Nil, 0, Some("nope")), model)
   }
 
   pureTest("typing a game id is remembered") {
-    val (model, _) = Update(Model.Start("", "", None), Msg.JoiningChanged("g2"))
-    expect.same(Model.Start("", "g2", None), model)
+    val (model, _) = Update(Model.Start("", "", Nil, 0, None), Msg.JoiningChanged("g2"))
+    expect.same(Model.Start("", "g2", Nil, 0, None), model)
   }
 
   pureTest("typing a name is remembered") {
-    val (model, _) = Update(Model.Start("", "", None), Msg.NameChanged("Ada"))
-    expect.same(Model.Start("Ada", "", None), model)
+    val (model, _) = Update(Model.Start("", "", Nil, 0, None), Msg.NameChanged("Ada"))
+    expect.same(Model.Start("Ada", "", Nil, 0, None), model)
   }
 
   test("asking for a seat without a usable name asks for one and sends nothing") {
@@ -80,18 +80,18 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
     val asking   = Gen.oneOf(Msg.Create, Msg.Join)
 
     forall(Gen.zip(unusable, asking)) { (name, msg) =>
-      val (model, command) = Update(Model.Start(name, "g2", None), msg)
+      val (model, command) = Update(Model.Start(name, "g2", Nil, 0, None), msg)
 
       expect
-        .same(Model.Start(name, "g2", Some(Update.NameWanted)), model)
+        .same(Model.Start(name, "g2", Nil, 0, Some(Update.NameWanted)), model)
         .and(expect(command == Cmd.None))
     }
   }
 
   pureTest("asking for a seat with a name clears the last error and sends the request") {
-    val (model, command) = Update(Model.Start("Ada", "", Some("stale")), Msg.Create)
+    val (model, command) = Update(Model.Start("Ada", "", Nil, 0, Some("stale")), Msg.Create)
 
-    expect.same(Model.Start("Ada", "", None), model).and(expect(command != Cmd.None))
+    expect.same(Model.Start("Ada", "", Nil, 0, None), model).and(expect(command != Cmd.None))
   }
 
   test("a round in play seats the player at the table, in the server's order") {
@@ -158,7 +158,11 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
   test("a hand message away from the table changes nothing") {
     forall(handMessages) { case (_, _, msg) =>
       val away =
-        List(Model.Start("", "g2", None), Model.Connecting(seat), Model.Seated(seat, waiting, None))
+        List(
+          Model.Start("", "g2", Nil, 0, None),
+          Model.Connecting(seat),
+          Model.Seated(seat, waiting, None)
+        )
 
       expect(away.forall(model => Update(model, msg)._1 == model))
     }
@@ -181,5 +185,35 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
 
       expect.same(Model.Playing(seat, view, holding, Some("nope")), model)
     }
+  }
+
+  private val listing = Listing(GameId("g2"), NameGen.named("Grace"), ListedAt(0))
+
+  pureTest("a new list replaces the lobby") {
+    val (model, _) = Update(Model.Start("Ada", "", Nil, 0, None), Msg.Listed(List(listing)))
+    expect.same(Model.Start("Ada", "", List(listing), 0, None), model)
+  }
+
+  pureTest("a tick moves the clock the waiting times are read against") {
+    val (model, _) = Update(Model.Start("Ada", "", Nil, 0, None), Msg.Tick(60000))
+    expect.same(Model.Start("Ada", "", Nil, 60000, None), model)
+  }
+
+  pureTest("joining from the lobby without a name asks for one and sends nothing") {
+    val (model, command) =
+      Update(Model.Start("", "", List(listing), 0, None), Msg.JoinListed(listing.id))
+
+    expect
+      .same(Model.Start("", "", List(listing), 0, Some(Update.NameWanted)), model)
+      .and(
+        expect(command == Cmd.None)
+      )
+  }
+
+  pureTest("joining from the lobby with a name sends the request") {
+    val (_, command) =
+      Update(Model.Start("Ada", "", List(listing), 0, None), Msg.JoinListed(listing.id))
+
+    expect(command != Cmd.None)
   }
 }

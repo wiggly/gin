@@ -24,6 +24,15 @@ object Update {
       case (start: Model.Start, Msg.Join) =>
         named(start)(Api.join(start.joining, _))
 
+      case (start: Model.Start, Msg.Listed(listings)) =>
+        (start.copy(lobby = listings), Cmd.None)
+
+      case (start: Model.Start, Msg.Tick(now)) =>
+        (start.copy(now = now), Cmd.None)
+
+      case (start: Model.Start, Msg.JoinListed(id)) =>
+        named(start)(Api.join(id.value, _))
+
       case (_, Msg.Took(credentials)) =>
         (Model.Connecting(credentials), Cmd.None)
 

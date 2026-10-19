@@ -1,6 +1,6 @@
 package wiggly.gin.ui
 
-import wiggly.gin.core.domain.PlayerView
+import wiggly.gin.core.domain.{Listing, PlayerView}
 import wiggly.gin.core.port.Credentials
 
 /** What the browser holds.
@@ -11,7 +11,16 @@ import wiggly.gin.core.port.Credentials
   */
 enum Model {
 
-  case Start(name: String, joining: String, error: Option[String])
+  /** `now` is the browser's clock in milliseconds, held in the model so that `View` stays a pure
+    * function of it and a row's waiting time can be tested.
+    */
+  case Start(
+      name: String,
+      joining: String,
+      lobby: List[Listing],
+      now: Long,
+      error: Option[String]
+  )
 
   /** A seat is held but no view has arrived for it. The server publishes a game's current state to
     * a new watcher at once, so this is brief, but it is a state the model can be in.
