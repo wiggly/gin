@@ -10,7 +10,7 @@ import cats.{Eq, Show}
   */
 enum PlayerView {
 
-  case AwaitingOpponent(id: GameId, you: Player)
+  case AwaitingOpponent(id: GameId, you: Player, name: PlayerName)
 
   /** @param arrangement
     *   the requester's own cards, arranged as well as the rules allow, which is also what tells
@@ -27,6 +27,7 @@ enum PlayerView {
   case InPlay(
       id: GameId,
       you: Player,
+      names: Names,
       arrangement: Arrangement,
       dealer: Player,
       onTurn: Player,
@@ -39,7 +40,7 @@ enum PlayerView {
       previous: Option[RoundResult]
   )
 
-  case Over(id: GameId, you: Player, result: MatchResult, previous: RoundResult)
+  case Over(id: GameId, you: Player, names: Names, result: MatchResult, previous: RoundResult)
 }
 
 object PlayerView {
@@ -49,13 +50,14 @@ object PlayerView {
     */
   def of(game: Game, you: Player): PlayerView = {
     game match {
-      case waiting: Game.AwaitingOpponent => AwaitingOpponent(waiting.id, you)
+      case waiting: Game.AwaitingOpponent => AwaitingOpponent(waiting.id, you, waiting.hostName)
       case playing: Game.InPlay           => {
         val table = playing.round.table
 
         InPlay(
           id = playing.id,
           you = you,
+          names = playing.names,
           arrangement = table.hands(you).arrangement,
           dealer = playing.round.seats.dealer,
           onTurn = playing.round.onTurn,
@@ -68,7 +70,7 @@ object PlayerView {
           previous = playing.previous
         )
       }
-      case over: Game.Over => Over(over.id, you, over.ledger.result, over.previous)
+      case over: Game.Over => Over(over.id, you, over.names, over.ledger.result, over.previous)
     }
   }
 

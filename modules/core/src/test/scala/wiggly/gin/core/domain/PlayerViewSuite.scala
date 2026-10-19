@@ -3,11 +3,11 @@ package wiggly.gin.core.domain
 import cats.implicits.*
 import weaver.SimpleIOSuite
 import weaver.scalacheck.Checkers
-import wiggly.gin.gen.GameGen
+import wiggly.gin.gen.{GameGen, NameGen}
 
 object PlayerViewSuite extends SimpleIOSuite with Checkers {
 
-  private val waiting = Game.AwaitingOpponent(GameId("a-game"), Token("host"))
+  private val waiting = Game.AwaitingOpponent(GameId("a-game"), Token("host"), NameGen.named("Ada"))
 
   private def cardsIn(view: PlayerView.InPlay): List[Card] = {
     val held = view.arrangement.melds.flatMap(_.cards.toList) ++ view.arrangement.deadwood
@@ -27,11 +27,23 @@ object PlayerViewSuite extends SimpleIOSuite with Checkers {
     }
   }
 
-  pureTest("a game waiting for an opponent says only that") {
+  pureTest("a game waiting for an opponent says only that, and whose it is") {
     expect.eql(
       PlayerView.of(waiting, Player.One),
-      PlayerView.AwaitingOpponent(GameId("a-game"), Player.One)
+      PlayerView.AwaitingOpponent(GameId("a-game"), Player.One, NameGen.named("Ada"))
     )
+  }
+
+  test("every view of a round in play carries both names unchanged") {
+    forall(GameGen.gamePlayed(10)) { game =>
+      game match {
+        case playing: Game.InPlay =>
+          Player.values.toList.foldLeft(success) { (soFar, you) =>
+            soFar and expect.eql(inPlay(PlayerView.of(playing, you)).names, playing.names)
+          }
+        case _ => success
+      }
+    }
   }
 
   test("a player is shown their own hand and told only how many the other player holds") {

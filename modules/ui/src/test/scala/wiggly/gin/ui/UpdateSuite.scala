@@ -6,7 +6,7 @@ import weaver.SimpleIOSuite
 import weaver.scalacheck.Checkers
 import wiggly.gin.core.domain.*
 import wiggly.gin.core.port.Credentials
-import wiggly.gin.gen.ViewGen
+import wiggly.gin.gen.{NameGen, ViewGen}
 import wiggly.gin.gen.ViewGen.held
 
 object UpdateSuite extends SimpleIOSuite with Checkers {
@@ -16,7 +16,8 @@ object UpdateSuite extends SimpleIOSuite with Checkers {
 
   private val seat = Credentials(GameId("g1"), Player.One, Token("t1"))
 
-  private val waiting = new PlayerView.AwaitingOpponent(GameId("g1"), Player.One)
+  private val waiting =
+    new PlayerView.AwaitingOpponent(GameId("g1"), Player.One, NameGen.named("Ada"))
 
   private val handMessages: Gen[(PlayerView.InPlay, Card, Msg)] = for {
     view <- Gen.oneOf(ViewGen.inPlay, ViewGen.discarding)

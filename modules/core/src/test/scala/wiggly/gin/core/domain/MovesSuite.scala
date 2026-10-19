@@ -5,7 +5,7 @@ import weaver.SimpleIOSuite
 import weaver.scalacheck.Checkers
 import wiggly.gin.core.domain.Rank.*
 import wiggly.gin.core.domain.Suit.*
-import wiggly.gin.gen.GameGen
+import wiggly.gin.gen.{GameGen, NameGen}
 
 object MovesSuite extends SimpleIOSuite with Checkers {
 
@@ -125,6 +125,7 @@ object MovesSuite extends SimpleIOSuite with Checkers {
     val game = Game.InPlay(
       id = GameId("g1"),
       tokens = Tokens(Token("t1"), Token("t2")),
+      names = Names(NameGen.named("Ada"), NameGen.named("Grace")),
       ledger = Match.start(seats.dealer),
       round = round,
       previous = None

@@ -64,6 +64,20 @@ object Codecs {
   given Decoder[GameId] = Decoder.decodeString.map(GameId.apply)
   given Decoder[Token]  = Decoder.decodeString.map(Token.apply)
 
+  given Encoder[PlayerName] = Encoder.encodeString.contramap(_.value)
+
+  /** Rebuilt through the smart constructor, for the reason a meld is: decoding is the one door
+    * a name that breaks the rule could otherwise walk through.
+    */
+  given Decoder[PlayerName] =
+    Decoder.decodeString.emap(raw => PlayerName.from(raw).toRight(s"not a name: $raw"))
+
+  given Encoder[Names] = Encoder.AsObject.derived
+  given Decoder[Names] = Decoder.derived
+
+  given Encoder[Introduction] = Encoder.AsObject.derived
+  given Decoder[Introduction] = Decoder.derived
+
   given Encoder[Card] = Encoder.AsObject.derived
   given Decoder[Card] = Decoder.derived
 

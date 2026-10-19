@@ -8,7 +8,7 @@ import weaver.scalacheck.Checkers
 import wiggly.gin.core.domain.*
 import wiggly.gin.core.port.{Credentials, GameService}
 import wiggly.gin.fake.{CountingSecrets, FakeEvents, FakeRepository, FixedShuffler}
-import wiggly.gin.gen.GameGen
+import wiggly.gin.gen.{GameGen, NameGen}
 
 object GamesSuite extends SimpleIOSuite with Checkers {
 
@@ -28,12 +28,15 @@ object GamesSuite extends SimpleIOSuite with Checkers {
     events
   )
 
+  private val ada   = NameGen.named("Ada")
+  private val grace = NameGen.named("Grace")
+
   /** A game created and joined, with what each player was given to claim their seat. */
   private def seated(deck: Deck = Deck.ordered): IO[(Table, Credentials, Credentials)] = for {
     table <- table(deck)
-    host  <- table.service.create
+    host  <- table.service.create(ada)
     guest <- table.service
-      .join(host.id)
+      .join(host.id, grace)
       .map(_.getOrElse(sys.error("a game with one player refused a second")))
   } yield (table, host, guest)
 
@@ -50,16 +53,16 @@ object GamesSuite extends SimpleIOSuite with Checkers {
   test("creating a game stores one waiting for an opponent and names the host") {
     for {
       table  <- table()
-      host   <- table.service.create
+      host   <- table.service.create(ada)
       stored <- table.repository.stored
     } yield expect.eql(host.you, Player.One) and
-      expect.eql(stored.get(host.id), Some(Game.AwaitingOpponent(host.id, host.token)))
+      expect.eql(stored.get(host.id), Some(Game.AwaitingOpponent(host.id, host.token, ada)))
   }
 
   test("creating a game publishes it, so a host watching hears the game start") {
     for {
       table     <- table()
-      host      <- table.service.create
+      host      <- table.service.create(ada)
       published <- table.events.published
     } yield expect.eql(published.map(_.id), List(host.id))
   }
@@ -73,8 +76,17 @@ object GamesSuite extends SimpleIOSuite with Checkers {
       expect.eql(view.map(inPlay(_).onTurn), Right(Player.One))
   }
 
+  test("both players see the same two names, the host's first") {
+    for {
+      (table, host, guest) <- seated()
+      theirs               <- table.service.look(host.id, host.token)
+      others               <- table.service.look(guest.id, guest.token)
+    } yield expect.eql(theirs.map(inPlay(_).names), Right(Names(ada, grace))) and
+      expect.eql(others.map(inPlay(_).names), Right(Names(ada, grace)))
+  }
+
   test("joining a game nobody created is refused") {
-    table().flatMap(_.service.join(GameId("no-such-game"))).map { joined =>
+    table().flatMap(_.service.join(GameId("no-such-game"), grace)).map { joined =>
       expect.eql(joined, Left(GameFault.NoSuchGame))
     }
   }
@@ -82,7 +94,7 @@ object GamesSuite extends SimpleIOSuite with Checkers {
   test("a third player is turned away") {
     for {
       (table, host, _) <- seated()
-      third            <- table.service.join(host.id)
+      third            <- table.service.join(host.id, grace)
     } yield expect.eql(third, Left(GameFault.AlreadyFull))
   }
 

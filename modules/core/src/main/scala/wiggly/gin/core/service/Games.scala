@@ -22,21 +22,21 @@ object Games {
   ): GameService[F] = {
     new GameService[F] {
 
-      def create: F[Credentials] = {
+      def create(name: PlayerName): F[Credentials] = {
         for {
           id    <- secrets.gameId
           token <- secrets.token
-          game = Game.AwaitingOpponent(id, token)
+          game = Game.AwaitingOpponent(id, token, name)
           _ <- repository.create(game)
           _ <- events.publish(game)
         } yield Credentials(id, Player.One, token)
       }
 
-      def join(id: GameId): F[Either[GameFault, Credentials]] = {
+      def join(id: GameId, name: PlayerName): F[Either[GameFault, Credentials]] = {
         for {
           token  <- secrets.token
           deck   <- shuffler.shuffled
-          joined <- repository.update(id)(_.joined(token, deck))
+          joined <- repository.update(id)(_.joined(token, name, deck))
           _      <- announce(joined)
         } yield joined.as(Credentials(id, Player.Two, token))
       }

@@ -9,7 +9,7 @@ import wiggly.gin.core.domain.*
 import wiggly.gin.core.domain.Rank.*
 import wiggly.gin.core.domain.Suit.*
 import wiggly.gin.core.port.Credentials
-import wiggly.gin.gen.{GameGen, HandGen}
+import wiggly.gin.gen.{GameGen, HandGen, NameGen}
 
 import Codecs.given
 
@@ -162,9 +162,29 @@ object CodecsSuite extends SimpleIOSuite with Checkers {
   }
 
   pureTest("a game waiting for an opponent says which state it is in") {
-    val view = (PlayerView.AwaitingOpponent(GameId("a-game"), Player.One): PlayerView).asJson
+    val view = (PlayerView.AwaitingOpponent(
+      GameId("a-game"),
+      Player.One,
+      NameGen.named("Ada")
+    ): PlayerView).asJson
 
     expect.eql(view.hcursor.get[String]("state"), Right("awaiting-opponent")) and
-      expect.eql(view.hcursor.get[String]("id"), Right("a-game"))
+      expect.eql(view.hcursor.get[String]("id"), Right("a-game")) and
+      expect.eql(view.hcursor.get[String]("name"), Right("Ada"))
+  }
+
+  pureTest("a name is the string it wraps") {
+    expect.eql(NameGen.named("Ada").asJson, Json.fromString("Ada"))
+  }
+
+  pureTest("a name the rules refuse is refused on the way in, not made into one") {
+    expect(Json.fromString("   ").as[PlayerName].isLeft) and
+      expect(Json.fromString("x" * 21).as[PlayerName].isLeft)
+  }
+
+  test("an introduction survives the trip out and back") {
+    forall(NameGen.name) { name =>
+      expect.eql(Right(Introduction(name)), Introduction(name).asJson.as[Introduction])
+    }
   }
 }

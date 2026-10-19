@@ -174,13 +174,15 @@ object GameGen {
     * have to arrive with the move.
     */
   def gamePlayed(steps: Int): Gen[Game] = for {
-    id    <- gameId
-    host  <- token
-    guest <- token
-    first <- deck
+    id        <- gameId
+    host      <- token
+    guest     <- token
+    hostName  <- NameGen.name
+    guestName <- NameGen.name
+    first     <- deck
     game = Game
-      .AwaitingOpponent(id, host)
-      .joined(guest, first)
+      .AwaitingOpponent(id, host, hostName)
+      .joined(guest, guestName, first)
       .getOrElse(sys.error("a waiting game refused an opponent"))
     played <- advance(game, steps)
   } yield played
@@ -211,11 +213,13 @@ object GameGen {
     * walk ends one.
     */
   val inPlay: Gen[Game.InPlay] = for {
-    id    <- gameId
-    host  <- token
-    guest <- token
-    first <- deck
-    joined = Game.AwaitingOpponent(id, host).joined(guest, first) match {
+    id        <- gameId
+    host      <- token
+    guest     <- token
+    hostName  <- NameGen.name
+    guestName <- NameGen.name
+    first     <- deck
+    joined = Game.AwaitingOpponent(id, host, hostName).joined(guest, guestName, first) match {
       case Right(playing: Game.InPlay) => playing
       case other                       => sys.error(s"a joined game was not in play: $other")
     }

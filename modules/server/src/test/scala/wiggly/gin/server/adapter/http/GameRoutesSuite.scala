@@ -21,6 +21,7 @@ import wiggly.gin.core.domain.*
 import wiggly.gin.core.port.{Credentials, GameService}
 import wiggly.gin.core.service.Games
 import wiggly.gin.fake.{CountingSecrets, FakeEvents, FakeRepository, FixedShuffler}
+import wiggly.gin.gen.NameGen
 
 import scala.concurrent.duration.*
 
@@ -43,30 +44,66 @@ object GameRoutesSuite extends SimpleIOSuite {
   private def request(method: Method, path: String, token: Option[Token]): Request[IO] =
     token.map(bearer).foldLeft(Request[IO](method, at(path)))(_.putHeaders(_))
 
+  private def introducing(name: String): Json = Json.obj("name" -> Json.fromString(name))
+
   private def seated(table: Table): IO[(Credentials, Credentials)] = for {
-    host  <- table.service.create
+    host  <- table.service.create(NameGen.named("Ada"))
     guest <- table.service
-      .join(host.id)
+      .join(host.id, NameGen.named("Grace"))
       .map(_.getOrElse(sys.error("a game with one player refused a second")))
   } yield (host, guest)
 
   test("creating a game answers 201 with the seat and the token that claims it") {
     for {
       table    <- table
-      response <- table.app.run(Request[IO](Method.POST, uri"/games"))
-      body     <- response.as[Json]
+      response <- table.app.run(
+        Request[IO](Method.POST, uri"/games").withEntity(introducing("Ada"))
+      )
+      body <- response.as[Json]
     } yield expect.eql(response.status, Status.Created) and
       expect.eql(body.hcursor.get[String]("you"), Right("one")) and
       expect(body.hcursor.get[String]("token").isRight) and
       expect(body.hcursor.get[String]("id").isRight)
   }
 
+  test("creating a game without a name answers 400 and creates nothing") {
+    for {
+      table    <- table
+      response <- table.app.run(Request[IO](Method.POST, uri"/games"))
+      body     <- response.as[Json]
+    } yield expect.eql(response.status, Status.BadRequest) and
+      expect.eql(body.hcursor.get[String]("error"), Right("malformed-name"))
+  }
+
+  test("a name of nothing but space answers 400") {
+    for {
+      table    <- table
+      response <- table.app.run(
+        Request[IO](Method.POST, uri"/games").withEntity(introducing("   "))
+      )
+      body <- response.as[Json]
+    } yield expect.eql(response.status, Status.BadRequest) and
+      expect.eql(body.hcursor.get[String]("error"), Right("malformed-name"))
+  }
+
+  test("joining without a name answers 400 and leaves the seat free") {
+    for {
+      table    <- table
+      host     <- table.service.create(NameGen.named("Ada"))
+      response <- table.app.run(Request[IO](Method.POST, at(s"/games/${host.id.value}/join")))
+      later    <- table.service.join(host.id, NameGen.named("Grace"))
+    } yield expect.eql(response.status, Status.BadRequest) and expect(later.isRight)
+  }
+
   test("joining answers 200 with the second seat") {
     for {
       table    <- table
-      host     <- table.service.create
-      response <- table.app.run(Request[IO](Method.POST, at(s"/games/${host.id.value}/join")))
-      body     <- response.as[Json]
+      host     <- table.service.create(NameGen.named("Ada"))
+      response <- table.app.run(
+        Request[IO](Method.POST, at(s"/games/${host.id.value}/join"))
+          .withEntity(introducing("Grace"))
+      )
+      body <- response.as[Json]
     } yield expect.eql(response.status, Status.Ok) and
       expect.eql(body.hcursor.get[String]("you"), Right("two"))
   }
@@ -74,8 +111,10 @@ object GameRoutesSuite extends SimpleIOSuite {
   test("joining a game nobody created answers 404") {
     for {
       table    <- table
-      response <- table.app.run(Request[IO](Method.POST, uri"/games/no-such-game/join"))
-      body     <- response.as[Json]
+      response <- table.app.run(
+        Request[IO](Method.POST, uri"/games/no-such-game/join").withEntity(introducing("Grace"))
+      )
+      body <- response.as[Json]
     } yield expect.eql(response.status, Status.NotFound) and
       expect.eql(body.hcursor.get[String]("error"), Right("no-such-game"))
   }
@@ -84,8 +123,11 @@ object GameRoutesSuite extends SimpleIOSuite {
     for {
       table     <- table
       (host, _) <- seated(table)
-      response  <- table.app.run(Request[IO](Method.POST, at(s"/games/${host.id.value}/join")))
-      body      <- response.as[Json]
+      response  <- table.app.run(
+        Request[IO](Method.POST, at(s"/games/${host.id.value}/join"))
+          .withEntity(introducing("Grace"))
+      )
+      body <- response.as[Json]
     } yield expect.eql(response.status, Status.Conflict) and
       expect.eql(body.hcursor.get[String]("error"), Right("already-full"))
   }

@@ -19,12 +19,12 @@ import org.http4s.{
   ServerSentEvent,
   Status
 }
-import wiggly.gin.core.domain.{GameFault, GameId, Move, PlayerView, Token}
+import wiggly.gin.core.domain.{GameFault, GameId, Move, PlayerName, PlayerView, Token}
 import wiggly.gin.core.port.GameService
 
 import scala.concurrent.duration.FiniteDuration
 
-import wiggly.gin.protocol.Codecs
+import wiggly.gin.protocol.{Codecs, Introduction}
 import wiggly.gin.protocol.Codecs.given
 
 /** The routes a client plays through.
@@ -72,6 +72,16 @@ object GameRoutes {
             .pure[F]
       }
 
+    /** A seat is taken by somebody, so a request that does not say who is answered before the
+      * service is asked.
+      */
+    def introduced(request: Request[F])(seated: PlayerName => F[Response[F]]): F[Response[F]] =
+      request.attemptAs[Introduction].value.flatMap {
+        case Right(introduction) => seated(introduction.name)
+        case Left(_)             =>
+          BadRequest(Json.obj("error" -> Json.fromString("malformed-name")))
+      }
+
     /** The stream a watcher holds open: that player's view of the game as it stands, then one for
       * every state it reaches afterwards.
       *
@@ -88,11 +98,13 @@ object GameRoutes {
     }
 
     HttpRoutes.of[F] {
-      case POST -> Root / "games" =>
-        service.create.flatMap(credentials => Created(credentials.asJson))
+      case request @ POST -> Root / "games" =>
+        introduced(request) { name =>
+          service.create(name).flatMap(credentials => Created(credentials.asJson))
+        }
 
-      case POST -> Root / "games" / id / "join" =>
-        service.join(GameId(id)).flatMap(answered)
+      case request @ POST -> Root / "games" / id / "join" =>
+        introduced(request)(name => service.join(GameId(id), name).flatMap(answered))
 
       case request @ GET -> Root / "games" / id =>
         withToken(request)(token => service.look(GameId(id), token).flatMap(answered))

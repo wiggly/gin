@@ -2,7 +2,7 @@ package wiggly.gin.core.port
 
 import cats.{Eq, Show}
 import fs2.Stream
-import wiggly.gin.core.domain.{GameFault, GameId, Move, Player, PlayerView, Token}
+import wiggly.gin.core.domain.{GameFault, GameId, Move, Player, PlayerName, PlayerView, Token}
 
 /** What a seat at a game is worth: the id of the game and the token that claims the seat. */
 final case class Credentials(id: GameId, you: Player, token: Token)
@@ -21,9 +21,9 @@ object Credentials {
   */
 trait GameService[F[_]] {
 
-  def create: F[Credentials]
+  def create(name: PlayerName): F[Credentials]
 
-  def join(id: GameId): F[Either[GameFault, Credentials]]
+  def join(id: GameId, name: PlayerName): F[Either[GameFault, Credentials]]
 
   def look(id: GameId, token: Token): F[Either[GameFault, PlayerView]]
 
