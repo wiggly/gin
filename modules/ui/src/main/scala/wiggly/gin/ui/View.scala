@@ -47,12 +47,16 @@ object View {
     )
   }
 
+  private def hostName(listing: Listing): Html[Msg] = {
+    span(cls := "name")(text(listing.host.value))
+  }
+
   private def lobby(listings: List[Listing], now: Long): Html[Msg] = {
     val rows = listings.map { listing =>
       li(cls := "listing")(
-        span(cls := "host")(text(listing.host.value)),
+        span(cls := "host")(hostName(listing)),
         span(cls := "age")(text(Waiting.age(listing.since, now))),
-        button(onClick(Msg.JoinListed(listing.id)))(text(s"Join ${listing.host.value}"))
+        button(onClick(Msg.JoinListed(listing.id)))(text("Join "), hostName(listing))
       )
     }
 

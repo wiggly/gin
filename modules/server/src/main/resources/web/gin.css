@@ -70,4 +70,5 @@ h2 { font-size: 1.1rem; }
 
 .lobby ul { list-style: none; margin: 0; padding: 0; }
 .lobby .listing { display: flex; align-items: center; gap: 1rem; margin: 0.4rem 0; }
+.lobby .host, .lobby .name { unicode-bidi: isolate; }
 .lobby .age { color: #6b665b; }
