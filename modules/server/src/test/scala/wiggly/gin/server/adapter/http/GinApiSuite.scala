@@ -73,6 +73,25 @@ object GinApiSuite extends SimpleIOSuite with Checkers {
     }
   }
 
+  test("a request body past the limit is refused with 413 and a JSON body, not a 500") {
+    val echo: HttpRoutes[IO] = HttpRoutes.of[IO] { case request @ POST -> Root / "echo" =>
+      request.as[Json].flatMap(Ok(_))
+    }
+
+    val oversized = Json.obj("name" -> Json.fromString("x" * (GinApi.BodyLimit.toInt + 1)))
+    val request   = Request[IO](Method.POST, uri"/api/v1/echo").withEntity(oversized)
+
+    GinApi.httpApp[IO](echo).run(request).flatMap { response =>
+      response.as[Json].map { body =>
+        expect
+          .eql(response.status, Status.PayloadTooLarge)
+          .and(
+            expect.eql(body, Json.obj("error" -> Json.fromString("Payload Too Large")))
+          )
+      }
+    }
+  }
+
   test("the API answers even when no game routes are wired in yet") {
     GinApi
       .httpApp[IO](HttpRoutes.empty[IO])

@@ -84,6 +84,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Credentials"
+        "413":
+          description: The body is larger than 4 KiB.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Payload Too Large
 
   /api/v1/games/{id}/join:
     post:
@@ -113,6 +121,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Credentials"
+        "413":
+          description: The body is larger than 4 KiB.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Payload Too Large
         "404":
           $ref: "#/components/responses/NoSuchGame"
         "409":
