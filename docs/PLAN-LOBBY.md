@@ -17,6 +17,11 @@ both players through `PlayerView`.
 
 **Spec:** [`docs/SPEC-LOBBY.md`](SPEC-LOBBY.md)
 
+**Status:** implemented on the `web-ui` branch. Where the code came out different from the spec is
+recorded in the spec's own "Where the code came out different" section. The lobby was driven end
+to end with `curl` against a running server. The play-through by a person at two browsers in
+Task 9 has not been done yet.
+
 ## Global Constraints
 
 - Scala 3.9.0, sbt 1.13.0, JDK 25.

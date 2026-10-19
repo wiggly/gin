@@ -181,6 +181,20 @@ replays a finite history, so a host's stream there closes as soon as it opens.
 | Abandoned games | Listed only while the host watches | No timers, and `Game` does not change for it. |
 | Where the lobby lives | A separate `LobbyBoard`, written only by `Games.watch` | One rule maintains the lobby, and it is tested in pure code. |
 
+## Where the code came out different
+
+Everything above is what landed, with these exceptions.
+
+| The spec said | The code does | Why |
+| --- | --- | --- |
+| A row leaves the lobby when its host's stream closes | A row can outlive a closed tab by up to one `GIN_HTTP_EVENT_HEARTBEAT` interval, which is 15 seconds by default | Ember notices a dead event-stream connection on the next write that fails. The heartbeat is that write. A walk-through with `curl` showed the row leaving after the next heartbeat. |
+| `PlayerName.from` accepts 1 to 20 characters with no control characters, after a trim | The trim is `String.trim`, which strips only characters up to U+0020 | A name made only of non-breaking or zero-width spaces is accepted. The spec did not say which spaces count. |
+| The `opened`, `closed` and `taken` writes need no extra type classes | `MemoryLobbyBoard.from` and `FakeLobbyBoard` take no context bounds | The build rejects an unused context bound, and neither had a use for one. |
+| The OpenAPI schema for the lobby stream is not described | The `text/event-stream` schema is a string with `contentMediaType: application/json` and a `contentSchema` that is an array of `Listing` | That is how the schema refers to `Listing`, so the lint finds no unused component. |
+| A waiting time reads in the muted colour of the page | The colour is a literal in `gin.css` | The stylesheet has no muted-colour variable, and one use did not earn one. |
+
+The presence suite is in `server`, as the spec says. It is `LobbyPresenceSuite`.
+
 ## Deliberately left out
 
 - No accounts and no persistent identity. A name lasts for one game.

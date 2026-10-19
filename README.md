@@ -166,11 +166,12 @@ it rather than proving that it matches the code.
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /health` | Liveness probe: `200 {"status":"ok"}` |
-| `POST /api/v1/games` | Create a game and take the first seat |
-| `POST /api/v1/games/{id}/join` | Take the second seat, which deals the first round |
+| `POST /api/v1/games` | Name yourself, create a game and take the first seat |
+| `POST /api/v1/games/{id}/join` | Name yourself, take the second seat, which deals the first round |
 | `GET /api/v1/games/{id}` | That player's own view of the game |
 | `POST /api/v1/games/{id}/moves` | Play a move, answered with the mover's own view |
 | `GET /api/v1/games/{id}/events` | The same view, pushed on every change, as `text/event-stream` |
+| `GET /api/v1/lobby/events` | The games waiting for an opponent, pushed on every change. No token. |
 
 Every response carries a JSON body, including `404` and `500`, so a client can parse them all the
 same way.
@@ -187,15 +188,17 @@ is what makes a view a view: the other player's hand and the order of the stock 
 | No such game | `404` |
 | A third player joining, or a move at a game not in play | `409` |
 | A move the rules refuse, named in the body | `422` |
-| A body that is not a move | `400` |
+| A body that is not a move, or a missing or invalid name | `400` |
 
 ### Playing a game
 
 ```bash
-CREATED=$(curl -s -X POST localhost:8080/api/v1/games)
+CREATED=$(curl -s -X POST -H 'Content-Type: application/json' -d '{"name":"Ada"}' \
+  localhost:8080/api/v1/games)
 ID=$(echo "$CREATED" | jq -r .id)
 HOST=$(echo "$CREATED" | jq -r .token)
-GUEST=$(curl -s -X POST "localhost:8080/api/v1/games/$ID/join" | jq -r .token)
+GUEST=$(curl -s -X POST -H 'Content-Type: application/json' -d '{"name":"Grace"}' \
+  "localhost:8080/api/v1/games/$ID/join" | jq -r .token)
 
 # Watch, as the guest, in another terminal.
 curl -N "localhost:8080/api/v1/games/$ID/events?token=$GUEST"

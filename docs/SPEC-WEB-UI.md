@@ -16,7 +16,7 @@ has no view to be shown.
 
 | Screen | Driven by | What it shows |
 | --- | --- | --- |
-| Start | No seat yet | A button to create a game, and a box to join one by id. |
+| Start | No seat yet | A button to create a game, and a box to join one by id. Since the lobby, a name box and the list of waiting games too. |
 | Waiting | `PlayerView.AwaitingOpponent` | A link to send the other player. |
 | Table | `PlayerView.InPlay` | The hand, the pile, the moves available, the totals. |
 | Over | `PlayerView.Over` | Who won the match, and the final figures. |

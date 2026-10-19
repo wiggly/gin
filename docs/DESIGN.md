@@ -9,8 +9,10 @@ in [the README](../README.md). The wire format is in [`openapi.yaml`](openapi.ya
 ## What the server does
 
 Two people play a match of gin rummy over HTTP. One player creates a game and gets back a token. A
-token is a secret string that claims one seat at one game. The other player joins with the game id
-and gets a token of their own. The join deals the first round.
+token is a secret string that claims one seat at one game. The other player joins and gets a
+token of their own. Each player gives a name, and the table shows both. The second player picks
+the game from the lobby, which lists every game whose host is watching it, or opens a link that
+holds the game id. The join deals the first round.
 
 From then on each player reads their own view of the game, plays moves, and watches a stream of
 updates. The server deals each new round and counts each finished round. When a player reaches 100
@@ -278,13 +280,15 @@ anything is now, and the version of the claim that keeps `previous` in is false.
 
 ## The ports
 
-There are five. `GameService` is the inbound port that the HTTP layer drives. The other four are
-outbound ports that the adapters satisfy.
+There are seven. `GameService` and `LobbyService` are the inbound ports that the HTTP layer
+drives. The other five are outbound ports that the adapters satisfy.
 
 | Port | What it is for | Who satisfies it |
 | --- | --- | --- |
 | `GameService` | Create, join, look, play, watch. The only way in. | `Games` in `core/service` |
+| `LobbyService` | The games waiting for an opponent, as a stream. | `Lobbies` in `core/service` |
 | `GameRepository` | Where games are kept. | `MemoryGameRepository` |
+| `LobbyBoard` | Where the lobby is kept. | `MemoryLobbyBoard` |
 | `GameEvents` | How a player finds out that the other one moved. | `MemoryGameEvents` |
 | `Shuffler` | A deck in an order nobody chose. | `RandomShuffler` |
 | `Secrets` | Game ids and tokens nobody can guess. | `RandomSecrets` |
@@ -306,6 +310,10 @@ function, writes the result through `update`, and publishes it. What it returns 
 view of what they did. A client therefore needs no second request to see the result of its own
 move. Creating and joining publish as well, because a host waiting on the stream wants to know
 that the game started.
+
+A game is in the lobby while its host holds an event stream open on it and the game is still
+waiting. Only `Games.watch` writes to the lobby, and a join or a closed stream takes the row out.
+[The lobby spec](SPEC-LOBBY.md) has the rule and the races it closes.
 
 ## The adapters
 
@@ -337,6 +345,7 @@ The HTTP adapter holds the routes and the codecs. The routes and their payloads 
 | `Illegal(error)` | 422, with the rule's own name in the body |
 | No token at all | 401, which the service is never asked about |
 | A body that is not a move | 400, for the same reason |
+| A missing or invalid player name | 400 with `malformed-name`, for the same reason |
 
 The codecs derive every case class and are written by hand only where derivation gets the shape
 wrong for an API. That happens in three places. A plain enum derives to `{"Ace":{}}` where a
@@ -450,8 +459,7 @@ Each of these is a decision rather than an oversight.
 - No image signing, no SBOM and no vulnerability scan. All three are claims about an artefact
   somebody else pulls, and nobody pulls this one yet.
 - No release versioning and no multi-architecture build. Both are part of deciding to publish.
-- No lobby. There is no listing of games, no matchmaking, and no way to find a game you were not
-  told the id of.
+- No matchmaking and no private games. The lobby lists every waiting game and a player picks one.
 - No CORS, no rate limit and no request id. Each of the three is middleware in `GinApi`, and
   nobody needs one yet.
 - No WebSocket. It is an adapter over `GameEvents` beside the stream, which is why the broker went
@@ -469,8 +477,6 @@ has somewhere to be recorded.
 - A persistent `GameRepository` adapter, once the in-memory one is outgrown. It is the same port, so
   nothing above it changes.
 - A WebSocket adapter over `GameEvents`, for a client that wants one connection for everything.
-- A lobby, with the accounts that making one useful implies. A shared link already finds a game,
-  so what a lobby adds is finding one nobody sent you.
 - Middleware in `GinApi` for CORS, rate limiting and a request id.
 - Publishing the image to a registry, with the tagging, signing and scanning that publishing an
   artefact for somebody else to pull implies.
