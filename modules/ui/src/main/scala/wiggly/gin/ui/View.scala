@@ -18,25 +18,31 @@ object View {
 
   def apply(model: Model): Html[Msg] = {
     model match {
-      case Model.Start(joining, error)  => start(joining, error)
+      case begun: Model.Start           => start(begun)
       case Model.Connecting(_)          => div(cls := "waiting")(text("Taking your seat..."))
       case Model.Seated(_, view, error) => seated(view, error)
       case Model.Playing(_, view, holding, error) => table(view, holding, error)
     }
   }
 
-  private def start(joining: String, error: Option[String]): Html[Msg] = {
+  private def start(model: Model.Start): Html[Msg] = {
     div(cls := "start")(
       h1(text("Gin Rummy")),
+      input(
+        value := model.name,
+        onInput(name => Msg.NameChanged(name)),
+        placeholder    := "your name",
+        Aria.ariaLabel := "your name"
+      ),
       button(onClick(Msg.Create))(text("Create a game")),
       p(text("or join one you were sent:")),
       input(
-        value := joining,
+        value := model.joining,
         onInput(id => Msg.JoiningChanged(id)),
         placeholder := "game id"
       ),
       button(onClick(Msg.Join))(text("Join")),
-      problem(error)
+      problem(model.error)
     )
   }
 
@@ -53,6 +59,7 @@ object View {
   private def awaiting(view: PlayerView.AwaitingOpponent, error: Option[String]): Html[Msg] = {
     div(cls := "waiting")(
       h1(text("Waiting for the other player")),
+      p(text(s"You are ${view.name.value}.")),
       p(text("Send them this link:")),
       code(cls := "game-id")(text(Seat.linkTo(view.id))),
       p(cls := "or")(text(s"or the game id on its own: ${view.id.value}")),
@@ -69,17 +76,18 @@ object View {
       piles(view, available),
       hand(view, holding, available),
       moves(holding, available),
-      view.previous.fold(empty)(lastRound),
+      view.previous.fold(empty)(lastRound(view.names, _)),
       problem(error)
     )
   }
 
   private def scoreboard(view: PlayerView.InPlay): Html[Msg] = {
-    val turn = if (view.onTurn === view.you) "Your turn" else "Waiting for the other player"
+    val them = view.names(view.you.other).value
+    val turn = if (view.onTurn === view.you) "Your turn" else s"Waiting for $them"
 
     div(cls := "scoreboard")(
-      p(text(s"You ${view.totals(view.you)}")),
-      p(text(s"Them ${view.totals(view.you.other)}")),
+      p(text(s"${view.names(view.you).value} ${view.totals(view.you)}")),
+      p(text(s"$them ${view.totals(view.you.other)}")),
       p(cls := "turn")(text(turn))
     )
   }
@@ -209,24 +217,25 @@ object View {
     }
   }
 
-  private def lastRound(result: RoundResult): Html[Msg] = {
+  private def lastRound(names: Names, result: RoundResult): Html[Msg] = {
     val said = result.score match {
       case RoundScore.Dead                     => "The stock ran down. Nobody scored."
-      case RoundScore.Knock(winner, points)    => s"${who(winner)} knocked for $points."
-      case RoundScore.Gin(winner, points)      => s"${who(winner)} went gin for $points."
-      case RoundScore.Undercut(winner, points) => s"${who(winner)} undercut for $points."
+      case RoundScore.Knock(winner, points)    => s"${names(winner).value} knocked for $points."
+      case RoundScore.Gin(winner, points)      => s"${names(winner).value} went gin for $points."
+      case RoundScore.Undercut(winner, points) => s"${names(winner).value} undercut for $points."
     }
 
     div(cls := "previous")(h2(text("The round before")), p(text(said)))
   }
 
   private def finished(view: PlayerView.Over): Html[Msg] = {
-    val said =
-      if (view.result.winner === view.you) "You won the match" else "The other player won the match"
+    val you  = view.names(view.you).value
+    val them = view.names(view.you.other).value
+    val said = if (view.result.winner === view.you) "You won the match" else s"$them won the match"
 
     div(cls := "over")(
       h1(text(said)),
-      p(text(s"You ${view.result.totals(view.you)}, them ${view.result.totals(view.you.other)}"))
+      p(text(s"$you ${view.result.totals(view.you)}, $them ${view.result.totals(view.you.other)}"))
     )
   }
 
@@ -239,8 +248,6 @@ object View {
       case Move.Knock(c)    => s"Knock with ${Cards.short(c)}"
     }
   }
-
-  private def who(player: Player): String = s"Player ${player.toString.toLowerCase}"
 
   private def problem(error: Option[String]): Html[Msg] =
     error.fold(empty)(reason => div(cls := "error")(text(reason)))

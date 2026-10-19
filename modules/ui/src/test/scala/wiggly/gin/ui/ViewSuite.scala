@@ -21,13 +21,28 @@ object ViewSuite extends SimpleIOSuite with Checkers {
     new PlayerView.AwaitingOpponent(GameId("g1"), Player.One, NameGen.named("Ada"))
 
   pureTest("the start screen offers both ways in") {
-    val rendered = drawn(Model.Start("", None))
+    val rendered = drawn(Model.Start("", "", None))
 
-    expect(rendered.contains("Create a game")).and(expect(rendered.contains("Join")))
+    expect(rendered.contains("Create a game"))
+      .and(expect(rendered.contains("Join")))
+      .and(expect(rendered.contains("your name")))
   }
 
   pureTest("the waiting screen shows the game to share") {
     expect(drawn(Model.Seated(seat, waiting, None)).contains("g1"))
+  }
+
+  pureTest("the waiting screen names the player") {
+    expect(drawn(Model.Seated(seat, waiting, None)).contains("Ada"))
+  }
+
+  test("the scoreboard names both players") {
+    forall(ViewGen.inPlay) { view =>
+      val rendered = drawn(playing(view))
+
+      expect(rendered.contains(view.names.one.value))
+        .and(expect(rendered.contains(view.names.two.value)))
+    }
   }
 
   pureTest("an error is put in front of the player") {

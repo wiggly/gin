@@ -24,7 +24,8 @@ object Main extends TyrianIOApp[Msg, Model] {
 
     arriving.flatMap(id => Seat.recall(GameId(id))) match {
       case Some(seat) => (Model.Connecting(seat), Cmd.None)
-      case None       => (Model.Start(arriving.getOrElse(""), None), Cmd.None)
+      case None       =>
+        (Model.Start(Profile.recall.getOrElse(""), arriving.getOrElse(""), None), Cmd.None)
     }
   }
 
@@ -32,8 +33,9 @@ object Main extends TyrianIOApp[Msg, Model] {
     // Writing the seat down belongs where the seat first becomes known. A command could be
     // dropped by a model that moved on, and then a reload would lose the game.
     msg match {
-      case Msg.Took(seat) => Seat.remember(seat)
-      case _              => ()
+      case Msg.Took(seat)        => Seat.remember(seat)
+      case Msg.NameChanged(name) => Profile.remember(name)
+      case _                     => ()
     }
 
     Update(model, msg)
@@ -46,7 +48,7 @@ object Main extends TyrianIOApp[Msg, Model] {
       case Model.Connecting(seat)       => Events.watch(seat)
       case Model.Seated(seat, _, _)     => Events.watch(seat)
       case Model.Playing(seat, _, _, _) => Events.watch(seat)
-      case Model.Start(_, _)            => Sub.None
+      case Model.Start(_, _, _)         => Sub.None
     }
   }
 }

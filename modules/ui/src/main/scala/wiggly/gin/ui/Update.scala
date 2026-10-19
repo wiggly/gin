@@ -2,22 +2,27 @@ package wiggly.gin.ui
 
 import cats.effect.IO
 import tyrian.Cmd
-import wiggly.gin.core.domain.PlayerView
+import wiggly.gin.core.domain.{PlayerName, PlayerView}
 import wiggly.gin.core.port.Credentials
 
 /** The pure half of the application: a message and a model in, a model and a command out. */
 object Update {
 
+  val NameWanted: String = s"Type a name of 1 to ${PlayerName.MaxLength} characters."
+
   def apply(model: Model, msg: Msg): (Model, Cmd[IO, Msg]) = {
     (model, msg) match {
-      case (Model.Start(_, error), Msg.JoiningChanged(id)) =>
-        (Model.Start(id, error), Cmd.None)
+      case (start: Model.Start, Msg.NameChanged(name)) =>
+        (start.copy(name = name), Cmd.None)
 
-      case (Model.Start(_, _), Msg.Create) =>
-        (model, Api.create)
+      case (start: Model.Start, Msg.JoiningChanged(id)) =>
+        (start.copy(joining = id), Cmd.None)
 
-      case (Model.Start(joining, _), Msg.Join) =>
-        (model, Api.join(joining))
+      case (start: Model.Start, Msg.Create) =>
+        named(start)(Api.create)
+
+      case (start: Model.Start, Msg.Join) =>
+        named(start)(Api.join(start.joining, _))
 
       case (_, Msg.Took(credentials)) =>
         (Model.Connecting(credentials), Cmd.None)
@@ -52,8 +57,8 @@ object Update {
       case (playing: Model.Playing, Msg.Release) =>
         (playing.copy(holding = playing.holding.released), Cmd.None)
 
-      case (Model.Start(joining, _), Msg.Failed(reason)) =>
-        (Model.Start(joining, Some(reason)), Cmd.None)
+      case (start: Model.Start, Msg.Failed(reason)) =>
+        (start.copy(error = Some(reason)), Cmd.None)
 
       case (seated: Model.Seated, Msg.Failed(reason)) =>
         (seated.copy(error = Some(reason)), Cmd.None)
@@ -64,6 +69,16 @@ object Update {
       // A message that does not belong to the state the model is in. A reply arriving after the
       // model moved on is one way to reach this, and `Hover` is another, so dropping it is right.
       case _ => (model, Cmd.None)
+    }
+  }
+
+  /** A seat is asked for only under a name the server accepts, so that a bad one is answered at
+    * once rather than after a round trip.
+    */
+  private def named(start: Model.Start)(ask: PlayerName => Cmd[IO, Msg]): (Model, Cmd[IO, Msg]) = {
+    PlayerName.from(start.name) match {
+      case Some(name) => (start.copy(error = None), ask(name))
+      case None       => (start.copy(error = Some(NameWanted)), Cmd.None)
     }
   }
 

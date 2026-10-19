@@ -11,7 +11,7 @@ import wiggly.gin.core.port.Credentials
   */
 enum Model {
 
-  case Start(joining: String, error: Option[String])
+  case Start(name: String, joining: String, error: Option[String])
 
   /** A seat is held but no view has arrived for it. The server publishes a game's current state to
     * a new watcher at once, so this is brief, but it is a state the model can be in.

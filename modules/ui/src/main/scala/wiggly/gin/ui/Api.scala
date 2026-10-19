@@ -5,9 +5,10 @@ import io.circe.syntax.*
 import io.circe.{Decoder as JsonDecoder, parser}
 import tyrian.Cmd
 import tyrian.http.*
-import wiggly.gin.core.domain.{Move, PlayerView}
+import wiggly.gin.core.domain.{Move, PlayerName, PlayerView}
 import wiggly.gin.core.port.Credentials
 import wiggly.gin.protocol.Codecs.given
+import wiggly.gin.protocol.Introduction
 
 /** Every call the browser makes.
   *
@@ -18,11 +19,16 @@ object Api {
 
   private val games = "/api/v1/games"
 
-  val create: Cmd[IO, Msg] =
-    Http.send(Request.post(games, Body.Empty), reading[Credentials](Msg.Took.apply))
+  def create(name: PlayerName): Cmd[IO, Msg] =
+    Http.send(Request.post(games, introducing(name)), reading[Credentials](Msg.Took.apply))
 
-  def join(id: String): Cmd[IO, Msg] =
-    Http.send(Request.post(s"$games/$id/join", Body.Empty), reading[Credentials](Msg.Took.apply))
+  def join(id: String, name: PlayerName): Cmd[IO, Msg] =
+    Http.send(
+      Request.post(s"$games/$id/join", introducing(name)),
+      reading[Credentials](Msg.Took.apply)
+    )
+
+  private def introducing(name: PlayerName): Body = Body.json(Introduction(name).asJson.noSpaces)
 
   def play(seat: Credentials, move: Move): Cmd[IO, Msg] = {
     val request = Request[Msg](

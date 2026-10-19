@@ -9,6 +9,7 @@ import wiggly.gin.core.port.Credentials
   * nowhere to put a throwable.
   */
 enum Msg {
+  case NameChanged(name: String)
   case JoiningChanged(id: String)
   case Create
   case Join
