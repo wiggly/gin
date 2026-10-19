@@ -272,8 +272,8 @@ types and of cats-effect in a browser. It was a known cost of this approach rath
 ## Deliberately left out
 
 - No WebSocket. It stays on the later list, behind `GameEvents`, as the design document has it.
-- No lobby, no listing of games and no accounts. The API has none of those and this adds none.
-  [The lobby spec](SPEC-LOBBY.md) adds a lobby later.
+- No lobby, no listing of games and no accounts. The API had none of those and this adds none.
+  [The lobby spec](SPEC-LOBBY.md) adds the lobby. Accounts are still absent.
 - No offline play and no service worker. A game lives on the server.
 - No animation. Card graphics and drag and drop came later, in
   [the card table spec](SPEC-CARD-TABLE.md).
