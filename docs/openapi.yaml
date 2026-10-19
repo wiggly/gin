@@ -267,6 +267,11 @@ paths:
             text/event-stream:
               schema:
                 type: string
+                contentMediaType: application/json
+                contentSchema:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Listing"
               example: |
                 data: [{"id":"c0ffee","host":"Ada","since":1760000000000}]
 
