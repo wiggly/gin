@@ -32,7 +32,7 @@ object PlayerNameSuite extends SimpleIOSuite with Checkers {
     val spoiled = for {
       raw     <- letters(2, PlayerName.MaxLength - 1)
       at      <- Gen.choose(1, raw.length - 1)
-      control <- Gen.choose('\u0000', '\u001f')
+      control <- Gen.oneOf(Gen.choose('\u0000', '\u001f'), Gen.choose('\u007f', '\u009f'))
     } yield raw.patch(at, control.toString, 0)
 
     forall(spoiled)(raw => expect.eql(PlayerName.from(raw), None))
@@ -42,7 +42,7 @@ object PlayerNameSuite extends SimpleIOSuite with Checkers {
     expect.eql(PlayerName.from(""), None) and expect.eql(PlayerName.from("   "), None)
   }
 
-  pureTest("the limit counts characters a person sees, not UTF-16 units") {
+  pureTest("the limit counts code points, not UTF-16 units") {
     val face = "😀"
 
     expect(PlayerName.from(face * PlayerName.MaxLength).isDefined) and
