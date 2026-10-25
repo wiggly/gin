@@ -1,6 +1,6 @@
 # Follow-ups
 
-These are small pieces of work that the card table left open. Each one stands alone, so you can take
+These are small pieces of work that the card table and the lobby left open. Each one stands alone, so you can take
 it up in a separate session. The number is a name for the item, not a priority. When you finish an
 item, delete it and leave the other numbers as they are.
 
@@ -100,6 +100,13 @@ None of these caused a fault.
 - `UpdateSuite`: the `JoinListed` test only checks that a command was sent. A wrong id passes.
 - `ViewSuite`: the "waiting 2 min" test passes if any one row says it.
 - `ViewSuite`: "scoreboard names both players" renders the whole table.
+- `PlayerNameSuite`: the title says a control character "anywhere" refuses a name, but the
+  generator puts one inside the name only. Space at the edges is trimmed, so say "inside".
+- `MemoryLobbyBoardSuite`: the first test calls `change` before `watch`, so it does not show that
+  nothing is lost while a watcher subscribes.
+- `GinApiSuite`: the body limit test uses a stub route. No test sends an oversized body to the
+  real create and join routes.
+- `GameRoutesSuite` uses the real `MemoryLobbyBoard`, while every other port there is a fake.
 
 ## 14. Lobby polish
 
@@ -108,3 +115,37 @@ None of these caused a fault.
 - `docs/openapi.yaml`: the `info.description` line is long, and `400` comes before the 2xx cases.
 - The name input in `View.scala` has no `maxlength`.
 - The age colour in `gin.css` is a literal.
+- `Events.watch` in `modules/ui/src/main/scala/wiggly/gin/ui/Events.scala` has no braces. About
+  20 other methods with a single expression have none either. Decide whether the braces rule in
+  `CLAUDE.md` covers them, and then change all of them or none.
+- `MemoryGameEventsSuite` has the `NameGen` import in a group of its own.
+- `docs/SPEC-LOBBY.md`: the line about the breaking change for a body with no name can link to
+  the `400` row. `docs/SPEC-WEB-UI.md`: the start screen row ends in a sentence fragment.
+
+## 15. Two sessions in one browser start with the same name
+
+`Profile` in `modules/ui/src/main/scala/wiggly/gin/ui/Profile.scala` keeps the name in
+`localStorage`. Every tab and normal window on one origin shares it, so a second session opens
+with the name that the first one typed. A private window has its own storage. Decide whether a
+tab keeps its own name, for example with `sessionStorage` first and `localStorage` second.
+
+## 16. A seat is not guarded against blocked storage
+
+`Seat` in `modules/ui/src/main/scala/wiggly/gin/ui/Seat.scala` calls `sessionStorage` with no
+guard. If a browser blocks storage, a player who arrives by a game link fails at `init`. `Profile`
+wraps its calls in `Try`. Do the same in `Seat`.
+
+## 17. The name is saved on every keystroke
+
+`Main.update` calls `Profile.remember` for each `NameChanged`. This saves names that are half
+typed or that the rule refuses. Save the name when a seat is asked for instead.
+
+## 18. Coverage after the lobby fixes
+
+The last coverage figure, 94.46% of statements and 92.20% of branches, is from before the final
+lobby fixes. Run `sbt coverageAll` again and update the floors in `build.sbt` if they moved.
+
+## 19. The earlier web-ui commits had no review of the whole branch
+
+The final review of the lobby covered `a00d387..d8b1177` only. It did not cover the web UI and
+card table commits before it. Review the whole `web-ui` branch against `main` before it merges.
