@@ -12,8 +12,9 @@ import org.http4s.{HttpApp, HttpRoutes, Request, Response, Status}
 
 /** Assembles the routes clients talk to into a single application.
   *
-  * The routes under the API prefix, the game's and the lobby's, are passed in rather than constructed here: this is a driving adapter, so
-  * it knows how to speak HTTP and nothing about how a hand of gin is played.
+  * The routes under the API prefix, the game's and the lobby's, are passed in rather than
+  * constructed here: this is a driving adapter, so it knows how to speak HTTP and nothing about
+  * how a hand of gin is played.
   */
 object GinApi {
 
