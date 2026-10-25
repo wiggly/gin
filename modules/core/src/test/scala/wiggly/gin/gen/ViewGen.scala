@@ -48,7 +48,9 @@ object ViewGen {
     (viewOf(game, you), viewOf(later, you))
   }
 
-  /** Filtered, because a move ends the round and deals afresh only rarely, so little is thrown away. */
+  /** Filtered, because a move ends the round and deals afresh only rarely, so little is thrown
+    * away.
+    */
   val sameDeal: Gen[(PlayerView.InPlay, PlayerView.InPlay)] =
     turn.retryUntil { case (before, after) => after.stockSize <= before.stockSize }
 

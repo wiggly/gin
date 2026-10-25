@@ -105,7 +105,6 @@ None of these caused a fault.
 
 - `Lobby.Row` and `rows` could be `private[domain]`.
 - The `ListedAt` codec comment does not name the case that it allows.
-- `Codecs.scala` and `Events.scala` have scaladoc lines over 100 columns.
 - `docs/openapi.yaml`: the `info.description` line is long, and `400` comes before the 2xx cases.
 - The name input in `View.scala` has no `maxlength`.
 - The age colour in `gin.css` is a literal.

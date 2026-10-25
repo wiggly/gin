@@ -12,7 +12,8 @@ import wiggly.gin.protocol.Codecs.given
   *
   * Tyrian ships a subscription for WebSockets and none for server-sent events, so this is the one
   * facade the browser needs. The token goes in the query rather than a header, because
-  * `EventSource` cannot set one, and the route already accepts it there. The lobby stream needs no token.
+  * `EventSource` cannot set one, and the route already accepts it there. The lobby stream needs no
+  * token.
   */
 object Events {
 

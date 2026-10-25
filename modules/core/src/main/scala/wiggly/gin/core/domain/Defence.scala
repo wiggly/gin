@@ -100,6 +100,7 @@ object Defence {
     val layoffs  = defence.layoffs.map(_.show).mkString(", ")
     val deadwood = defence.deadwood.map(_.show).mkString(", ")
 
-    s"Defence(melds = [$melds], laid off = [$layoffs], deadwood = [$deadwood] worth ${defence.deadwoodValue})"
+    s"Defence(melds = [$melds], laid off = [$layoffs], " +
+      s"deadwood = [$deadwood] worth ${defence.deadwoodValue})"
   }
 }

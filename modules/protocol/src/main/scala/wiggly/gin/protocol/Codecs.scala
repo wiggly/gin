@@ -14,8 +14,8 @@ import wiggly.gin.core.port.Credentials
   * beside its fields, and a single-field wrapper derives to `{"value":"…"}` rather than the string
   * it wraps.
   *
-  * Only `PlayerView`, `Credentials` and `Listing` have encoders that leave the building. A `Game` and a
-  * `GameState` deliberately have none: the one shape a game may be seen in is a view, and the
+  * Only `PlayerView`, `Credentials` and `Listing` have encoders that leave the building. A `Game`
+  * and a `GameState` deliberately have none: the one shape a game may be seen in is a view, and the
   * absence of a codec is what stops the other shapes reaching a client by accident.
   */
 object Codecs {
