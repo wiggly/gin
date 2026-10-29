@@ -7,10 +7,15 @@ round are in [the game flow document](docs/GAME-FLOW.md).
 
 ## Modules
 
-| Module            | Path             | Role                                                   |
-| ----------------- | ---------------- | ------------------------------------------------------ |
-| `wiggly-gin-core` | `modules/core`   | Domain and ports — pure, no infrastructure             |
-| `wiggly-gin-server` | `modules/server` | Driving adapter — exposes the game over HTTP           |
+| Module | Path | Platform | Role |
+| --- | --- | --- | --- |
+| `wiggly-gin-core` | `modules/core` | JVM and JS | Domain and ports — pure, no infrastructure |
+| `wiggly-gin-protocol` | `modules/protocol` | JVM and JS | The wire format, shared by both ends |
+| `wiggly-gin-server` | `modules/server` | JVM | Driving adapter — exposes the game over HTTP |
+| `wiggly-gin-ui` | `modules/ui` | JS | Driving adapter — the browser application |
+
+`core` and `protocol` cross-compile, so the browser holds the same domain types and reads the same
+derived codecs the server writes. The wire format therefore cannot drift between the two.
 
 ### Where a file goes
 
@@ -26,6 +31,14 @@ flowchart RL
         random["adapter/random/<br/>outbound"]
     end
 
+    subgraph ui["modules/ui: wiggly.gin.ui"]
+        browser["Main.scala<br/>View.scala<br/>Update.scala"]
+    end
+
+    subgraph protocol["modules/protocol"]
+        codecs["Codecs.scala"]
+    end
+
     subgraph core["modules/core: wiggly.gin.core"]
         service["service/"]
         port["port/"]
@@ -36,6 +49,10 @@ flowchart RL
     shell --> memory
     shell --> random
     http --> service
+    http --> codecs
+    browser --> codecs
+    browser --> domain
+    codecs --> domain
     service --> port
     service --> domain
     memory --> port
@@ -56,6 +73,9 @@ The table is the authority on where a file goes. Each path is relative to
 | `server/adapter/memory/` | Outbound: the store and the broker, both held in memory. |
 | `server/adapter/random/` | Outbound: the shuffle, and identifiers nobody can guess. |
 | `server/config/` | The runtime shell: configuration read from the environment. |
+| `server/adapter/http/WebRoutes.scala` | Serves the browser application and its files. |
+| `protocol/` | The codecs. Outside `core` so the domain carries no JSON, outside `server` so the browser reads the same ones. |
+| `ui/` | The browser application: a Tyrian model, update and view. |
 | `server/HttpServer.scala` | The Ember wiring. |
 | `server/Main.scala` | The composition root, the only place that knows every adapter. |
 
@@ -79,6 +99,18 @@ who implements it, and there are five: `GameService` is the one the HTTP layer d
 sbt server/run
 curl http://localhost:8080/health
 ```
+
+The first run links the browser application, which adds about a minute. After that it is cached.
+
+### Playing in a browser
+
+Open `http://localhost:8080`. One player creates a game and gets a link of the form
+`/play/<game-id>`. The other player opens that link, or types the game id on the start screen.
+
+The page is served from the same origin as the API, which is why no CORS configuration exists.
+
+Each player's seat is kept in `sessionStorage`, so a reload keeps the game. That storage belongs to
+one tab, so you can play both sides in two tabs of one browser and each keeps its own seat.
 
 ### In a container
 
@@ -134,11 +166,12 @@ it rather than proving that it matches the code.
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /health` | Liveness probe: `200 {"status":"ok"}` |
-| `POST /api/v1/games` | Create a game and take the first seat |
-| `POST /api/v1/games/{id}/join` | Take the second seat, which deals the first round |
+| `POST /api/v1/games` | Name yourself, create a game and take the first seat |
+| `POST /api/v1/games/{id}/join` | Name yourself, take the second seat, which deals the first round |
 | `GET /api/v1/games/{id}` | That player's own view of the game |
 | `POST /api/v1/games/{id}/moves` | Play a move, answered with the mover's own view |
 | `GET /api/v1/games/{id}/events` | The same view, pushed on every change, as `text/event-stream` |
+| `GET /api/v1/lobby/events` | The games waiting for an opponent, pushed on every change. No token. |
 
 Every response carries a JSON body, including `404` and `500`, so a client can parse them all the
 same way.
@@ -155,15 +188,17 @@ is what makes a view a view: the other player's hand and the order of the stock 
 | No such game | `404` |
 | A third player joining, or a move at a game not in play | `409` |
 | A move the rules refuse, named in the body | `422` |
-| A body that is not a move | `400` |
+| A body that is not a move, or a missing or invalid name | `400` |
 
 ### Playing a game
 
 ```bash
-CREATED=$(curl -s -X POST localhost:8080/api/v1/games)
+CREATED=$(curl -s -X POST -H 'Content-Type: application/json' -d '{"name":"Ada"}' \
+  localhost:8080/api/v1/games)
 ID=$(echo "$CREATED" | jq -r .id)
 HOST=$(echo "$CREATED" | jq -r .token)
-GUEST=$(curl -s -X POST "localhost:8080/api/v1/games/$ID/join" | jq -r .token)
+GUEST=$(curl -s -X POST -H 'Content-Type: application/json' -d '{"name":"Grace"}' \
+  "localhost:8080/api/v1/games/$ID/join" | jq -r .token)
 
 # Watch, as the guest, in another terminal.
 curl -N "localhost:8080/api/v1/games/$ID/events?token=$GUEST"
@@ -250,7 +285,12 @@ clean; coverage; test; coverageAggregate; coverageOff
 compilation, so any switch between the two kinds of build needs it. `coverageOff` puts the session
 back to uninstrumented compilation on the way out.
 
-`coverageAggregate` reports both modules together, and that combined figure is what the build
+`coverageAggregate` reports the JVM modules together, and that combined figure is what the build
 gates on: below 85% statement or 50% branch coverage the task fails. `Main.scala` and
 `HttpServer.scala` are excluded, because they are the composition root and the Ember wiring and no
-unit test drives them.
+unit test drives them. The same goes for the browser's `Main.scala` and `View.scala`.
+
+Coverage is off for every Scala.js target. scoverage instruments with JVM-only collections, which
+do not link under Scala.js. `core` and `protocol` are measured on their JVM side, and that is the
+same source, so nothing there goes unmeasured. What it costs is a figure for `ui`, which has its
+own suites but no number in the report.

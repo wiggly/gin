@@ -6,12 +6,18 @@ meta {
 
 post {
   url: {{baseUrl}}/api/v1/games
-  body: none
+  body: json
   auth: none
 }
 
 headers {
   Accept: application/json
+}
+
+body:json {
+  {
+    "name": "Ada"
+  }
 }
 
 script:post-response {

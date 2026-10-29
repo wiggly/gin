@@ -9,8 +9,10 @@ in [the README](../README.md). The wire format is in [`openapi.yaml`](openapi.ya
 ## What the server does
 
 Two people play a match of gin rummy over HTTP. One player creates a game and gets back a token. A
-token is a secret string that claims one seat at one game. The other player joins with the game id
-and gets a token of their own. The join deals the first round.
+token is a secret string that claims one seat at one game. The other player joins and gets a
+token of their own. Each player gives a name, and the table shows both. The second player picks
+the game from the lobby, which lists every game whose host is watching it, or opens a link that
+holds the game id. The join deals the first round.
 
 From then on each player reads their own view of the game, plays moves, and watches a stream of
 updates. The server deals each new round and counts each finished round. When a player reaches 100
@@ -19,23 +21,38 @@ points, the match ends.
 ## The shape of the system
 
 The code follows the hexagonal pattern, which is also called ports and adapters. The pattern puts
-the rules of the game in the middle, with no knowledge of HTTP, of storage, or of time. Everything
-that talks to the outside world sits at the edge, behind an interface the middle defines.
+the rules of the game in the middle, with no knowledge of HTTP or of storage. The middle knows of
+time only through the `Clock` typeclass from cats-effect, because `Games` stamps the moment a game
+starts waiting. `Clock` names no concrete effect, so the middle stays pure. Everything that talks to
+the outside world sits at the edge, behind an interface the middle defines.
 
 ```mermaid
 flowchart LR
-    HTTP["HTTP client"] --> Routes["http adapter<br/>routes and codecs"]
+    Browser["ui<br/>the browser"] --> Routes
+    HTTP["any HTTP client"] --> Routes["http adapter<br/>routes"]
+    Browser --> Codecs["protocol<br/>the codecs"]
+    Routes --> Codecs
     Routes --> Service["GameService port"]
+    Routes --> LobbyPort["LobbyService port"]
     Service --> Games["Games<br/>the service"]
+    LobbyPort --> Lobbies["Lobbies<br/>the lobby service"]
+    Games --> Board
+    Lobbies --> Board["LobbyBoard<br/>the lobby"]
     Games --> Domain["domain<br/>the rules"]
+    Codecs --> Domain
     Games --> Out["outbound ports"]
+    Lobbies --> Domain
     Out --> Memory["memory adapter<br/>store and events"]
     Out --> Random["random adapter<br/>shuffle and tokens"]
 ```
 
 The middle is the `core` module. It holds the domain and the ports, it is pure, and it names no
-technology at all. The `server` module holds every adapter and the `main` method. Dependencies
-point inward only. The README has the directory layout and the rule for where a new file goes.
+technology at all. `protocol` holds the codecs, `server` holds the JVM adapters and the `main`
+method, and `ui` is the browser. Dependencies point inward only. The README has the directory
+layout and the rule for where a new file goes.
+
+`core` and `protocol` cross-compile to the JVM and to JavaScript. That is what lets the browser
+hold the domain types rather than a second description of them.
 
 The gain is that a choice of technology is a choice you can revisit. A WebSocket adapter is a new
 file beside the event stream rather than a change to the rules. A database store is a second
@@ -226,7 +243,7 @@ stateDiagram-v2
 Two functions move a game on, and both take a deck, because both can deal one.
 
 ```scala
-def joined(guest: Token, deck: Deck): Either[GameFault, Game]
+def joined(guest: Token, guestName: PlayerName, deck: Deck): Either[GameFault, Game]
 def played(player: Player, move: Move, next: Deck): Either[GameFault, Game]
 ```
 
@@ -270,13 +287,15 @@ anything is now, and the version of the claim that keeps `previous` in is false.
 
 ## The ports
 
-There are five. `GameService` is the inbound port that the HTTP layer drives. The other four are
-outbound ports that the adapters satisfy.
+There are seven. `GameService` and `LobbyService` are the inbound ports that the HTTP layer
+drives. The other five are outbound ports that the adapters satisfy.
 
 | Port | What it is for | Who satisfies it |
 | --- | --- | --- |
 | `GameService` | Create, join, look, play, watch. The only way in. | `Games` in `core/service` |
+| `LobbyService` | The games waiting for an opponent, as a stream. | `Lobbies` in `core/service` |
 | `GameRepository` | Where games are kept. | `MemoryGameRepository` |
+| `LobbyBoard` | Where the lobby is kept. | `MemoryLobbyBoard` |
 | `GameEvents` | How a player finds out that the other one moved. | `MemoryGameEvents` |
 | `Shuffler` | A deck in an order nobody chose. | `RandomShuffler` |
 | `Secrets` | Game ids and tokens nobody can guess. | `RandomSecrets` |
@@ -298,6 +317,10 @@ function, writes the result through `update`, and publishes it. What it returns 
 view of what they did. A client therefore needs no second request to see the result of its own
 move. Creating and joining publish as well, because a host waiting on the stream wants to know
 that the game started.
+
+A game is in the lobby while its host holds an event stream open on it and the game is still
+waiting. Only `Games.watch` writes to the lobby, and a join or a closed stream takes the row out.
+[The lobby spec](SPEC-LOBBY.md) has the rule and the races it closes.
 
 ## The adapters
 
@@ -329,6 +352,7 @@ The HTTP adapter holds the routes and the codecs. The routes and their payloads 
 | `Illegal(error)` | 422, with the rule's own name in the body |
 | No token at all | 401, which the service is never asked about |
 | A body that is not a move | 400, for the same reason |
+| A missing or invalid player name | 400 with `malformed-name`, for the same reason |
 
 The codecs derive every case class and are written by hand only where derivation gets the shape
 wrong for an API. That happens in three places. A plain enum derives to `{"Ace":{}}` where a
@@ -336,6 +360,53 @@ client wants `"ace"`. A sum derives to `{"UpcardOffered":{...}}` where a client 
 the fields. A single-field wrapper derives to `{"value":"..."}` where a client wants the string.
 
 When somebody adds a field, a derived product stays right. A hand-written encoder does not.
+
+The codecs live in `protocol` rather than in the http adapter. Two adapters speak this protocol,
+and only one of them is the server. `core` still carries no JSON dependency,
+and `Game` and `GameState` still have no encoder at all.
+
+A decoder exists for every shape the server sends, because the browser has to read them. Each one
+is pinned by a property that encodes a generated value and decodes it back. A meld is rebuilt
+through `Meld.Set.from` and `Meld.Run.from`. A payload naming three cards that are not a meld is
+refused rather than made into one. Decoding is the one door that invariant has left.
+
+## The browser
+
+`ui` is a second driving adapter. It is a Tyrian application, which is the Elm architecture on
+cats-effect: a model, a message type, a pure `update`, a pure `view`, and subscriptions.
+
+The model has three cases. The player holds no seat, the player holds a seat that no view reached
+yet, or the player is seated with a view. The third keeps the `PlayerView` exactly as the server
+sent it. The client re-models nothing, because a redaction the client re-derives is a
+redaction with two authors.
+
+Once a player is seated, the screens are that view's own cases and no others. The browser holds no
+state the server does not have, and a token is never drawn on any screen.
+
+Which moves are available to a player is `Moves.available`, in `core/domain`. The browser puts a
+button on every move it returns, and the server accepts every move it returns, because both read
+the same function. A property pins it against the transition function itself: for any round in
+play, the moves offered are exactly the moves the rules accept.
+
+Tyrian ships a subscription for WebSockets and none for server-sent events, so the event stream
+needs a small facade over `dom.EventSource`. It is built with `Sub.make` and its
+acquire-and-release pair, so a change of game closes the connection. A dropped stream is not
+reported, because a browser reconnects one on its own.
+
+The application's own paths live under `/play`, not the whole of `/`. A fallback that answers
+every unmatched path also answers the ones this server already promises a JSON 404 for. A client
+then cannot tell a missing endpoint from a page. `GinApi` states the order rather than leaving it
+to whichever route matches first: the API and `/health` both answer before the browser application
+does.
+
+An sbt resource generator copies the linker output into the server's resources. One command still
+builds one image, and that image carries the UI. Serving the page from the same origin as the API
+is what means no CORS is needed.
+
+The seat goes in `sessionStorage`, keyed by game, because a reload that loses the token loses the
+game. What a seat is written down as is kept apart from the storage it is written to. The first is
+where a mistake can hide, so it is tested. The second is two calls into the browser, which no unit
+test reaches without a DOM.
 
 ## Transport and identity
 
@@ -395,8 +466,7 @@ Each of these is a decision rather than an oversight.
 - No image signing, no SBOM and no vulnerability scan. All three are claims about an artefact
   somebody else pulls, and nobody pulls this one yet.
 - No release versioning and no multi-architecture build. Both are part of deciding to publish.
-- No lobby. There is no listing of games, no matchmaking, and no way to find a game you were not
-  told the id of.
+- No matchmaking and no private games. The lobby lists every waiting game and a player picks one.
 - No CORS, no rate limit and no request id. Each of the three is middleware in `GinApi`, and
   nobody needs one yet.
 - No WebSocket. It is an adapter over `GameEvents` beside the stream, which is why the broker went
@@ -414,7 +484,8 @@ has somewhere to be recorded.
 - A persistent `GameRepository` adapter, once the in-memory one is outgrown. It is the same port, so
   nothing above it changes.
 - A WebSocket adapter over `GameEvents`, for a client that wants one connection for everything.
-- A lobby, with the accounts that making one useful implies.
 - Middleware in `GinApi` for CORS, rate limiting and a request id.
 - Publishing the image to a registry, with the tagging, signing and scanning that publishing an
   artefact for somebody else to pull implies.
+
+Smaller open items from finished work are in [the follow-ups](FOLLOW-UPS.md).

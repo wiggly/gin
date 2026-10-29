@@ -1,0 +1,26 @@
+meta {
+  name: 400 Malformed name
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/games
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+body:json {
+  {
+    "name": "   "
+  }
+}
+
+docs {
+  A name of nothing but space. The server answers `400` `malformed-name`, and no game is
+  created. A missing body gets the same answer.
+}

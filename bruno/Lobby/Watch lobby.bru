@@ -1,0 +1,23 @@
+meta {
+  name: Watch lobby
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/lobby/events
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: text/event-stream
+}
+
+docs {
+  Hold the lobby stream open. Each event is the whole list.
+
+  Bruno collects the whole body before it shows anything, so use curl to watch it:
+
+      curl -N "localhost:8080/api/v1/lobby/events"
+}

@@ -4,12 +4,13 @@ import cats.effect.IO
 import cats.implicits.*
 import weaver.SimpleIOSuite
 import wiggly.gin.core.domain.*
+import wiggly.gin.gen.NameGen
 
 object MemoryGameRepositorySuite extends SimpleIOSuite {
 
   private val id      = GameId("a-game")
   private val host    = Token("host")
-  private val waiting = Game.AwaitingOpponent(id, host)
+  private val waiting = Game.AwaitingOpponent(id, host, NameGen.named("Ada"))
 
   test("a game that was stored can be read back") {
     for {
@@ -31,7 +32,7 @@ object MemoryGameRepositorySuite extends SimpleIOSuite {
     for {
       store   <- MemoryGameRepository[IO]
       _       <- store.create(waiting)
-      changed <- store.update(id)(_.joined(Token("guest"), Deck.ordered))
+      changed <- store.update(id)(_.joined(Token("guest"), NameGen.named("Grace"), Deck.ordered))
       read    <- store.read(id)
     } yield expect.eql(changed.map(_.id), Right(id)) and
       expect.eql(read, changed.toOption) and
@@ -55,7 +56,7 @@ object MemoryGameRepositorySuite extends SimpleIOSuite {
       store <- MemoryGameRepository[IO]
       _     <- store.create(waiting)
       races <- (1 to 100).toList.parTraverse { attempt =>
-        store.update(id)(_.joined(Token(s"guest-$attempt"), Deck.ordered))
+        store.update(id)(_.joined(Token(s"guest-$attempt"), NameGen.named("Grace"), Deck.ordered))
       }
       read <- store.read(id)
     } yield expect.eql(races.count(_.isRight), 1) and

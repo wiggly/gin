@@ -5,8 +5,8 @@ info:
   version: 1.0.0
   summary: A multiplayer game server for Gin Rummy.
   description: |
-    Two players share one game. A player creates a game and takes the first seat. A second player
-    joins and takes the other seat, which deals the first round. Each player then reads their own
+    Two players share one game. A player gives a name to create a game and takes the first seat. A
+    second player gives a name to join and takes the other seat, which deals the first round. Each player then reads their own
     view of the game, plays moves into it, and can hold a stream open to receive every later view.
 
     A token (a secret string that holds a seat) is the whole of a player's claim to a seat. Both
@@ -30,6 +30,8 @@ tags:
     description: Liveness, for load balancers and container orchestrators.
   - name: games
     description: The routes a client plays a game through.
+  - name: lobby
+    description: The games waiting for an opponent.
 
 paths:
   /health:
@@ -62,16 +64,34 @@ paths:
       operationId: createGame
       summary: Create a game and take the first seat
       security: []
+      requestBody:
+        $ref: "#/components/requestBodies/Introduction"
       description: |
         The caller becomes player one. The game waits for a second player. The response holds the
         game id and the token for this seat. Store the token: the server never sends it again.
       responses:
+        "400":
+          description: The body does not hold a name of 1 to 20 characters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: malformed-name
         "201":
           description: The game exists and the caller holds the first seat.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Credentials"
+        "413":
+          description: The body is larger than 4 KiB.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Payload Too Large
 
   /api/v1/games/{id}/join:
     post:
@@ -79,18 +99,36 @@ paths:
       operationId: joinGame
       summary: Take the second seat
       security: []
+      requestBody:
+        $ref: "#/components/requestBodies/Introduction"
       description: |
         The caller becomes player two, and the first round is dealt. The response holds the token
         for the second seat. A game that already has two players refuses this.
       parameters:
         - $ref: "#/components/parameters/GameId"
       responses:
+        "400":
+          description: The body does not hold a name of 1 to 20 characters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: malformed-name
         "200":
           description: The caller holds the second seat and the first round is dealt.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Credentials"
+        "413":
+          description: The body is larger than 4 KiB.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Payload Too Large
         "404":
           $ref: "#/components/responses/NoSuchGame"
         "409":
@@ -216,7 +254,7 @@ paths:
               schema:
                 type: string
               example: |
-                data: {"state":"awaiting-opponent","id":"c0ffee","you":"one"}
+                data: {"state":"awaiting-opponent","id":"c0ffee","you":"one","name":"Ada"}
 
                 : still here
         "401":
@@ -225,6 +263,35 @@ paths:
           $ref: "#/components/responses/NotAPlayer"
         "404":
           $ref: "#/components/responses/NoSuchGame"
+
+  /api/v1/lobby/events:
+    get:
+      tags: [lobby]
+      operationId: watchLobby
+      summary: Stream the games waiting for an opponent
+      security: []
+      description: |
+        The stream opens with the list as it stands, and then sends the whole list again every
+        time it changes. A game is listed while its host holds the game's own event stream open
+        and nobody joined it. The list is oldest first.
+      responses:
+        "200":
+          description: |
+            An open event stream. Each event carries a JSON array of `Listing` on its `data:`
+            line. An idle stream sends a comment line every GIN_HTTP_EVENT_HEARTBEAT.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                contentMediaType: application/json
+                contentSchema:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Listing"
+              example: |
+                data: [{"id":"c0ffee","host":"Ada","since":1760000000000}]
+
+                : still here
 
 components:
 
@@ -249,6 +316,14 @@ components:
       description: The game id, as handed back by createGame.
       schema:
         type: string
+
+  requestBodies:
+    Introduction:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Introduction"
 
   responses:
     Unauthorized:
@@ -499,6 +574,47 @@ components:
           type: string
       required: [id, you, token]
 
+    PlayerName:
+      type: string
+      minLength: 1
+      maxLength: 20
+      description: |
+        What a player calls themselves. The server trims space from both ends and refuses control
+        characters. The limit counts characters, not bytes. A name is a label: two players can
+        share one, and the token is still the only claim to a seat.
+
+    Names:
+      type: object
+      description: The name of each player, keyed by seat.
+      properties:
+        one:
+          $ref: "#/components/schemas/PlayerName"
+        two:
+          $ref: "#/components/schemas/PlayerName"
+      required: [one, two]
+
+    Introduction:
+      type: object
+      description: Who is taking the seat.
+      properties:
+        name:
+          $ref: "#/components/schemas/PlayerName"
+      required: [name]
+
+    Listing:
+      type: object
+      description: One game in the lobby.
+      properties:
+        id:
+          type: string
+        host:
+          $ref: "#/components/schemas/PlayerName"
+        since:
+          type: integer
+          format: int64
+          description: When the host's stream opened, in milliseconds since the Unix epoch.
+      required: [id, host, since]
+
     Move:
       description: |
         Everything a player can do on their turn. `draw-stock` and `draw-discard` take a card.
@@ -663,7 +779,9 @@ components:
           type: string
         you:
           $ref: "#/components/schemas/Player"
-      required: [state, id, you]
+        name:
+          $ref: "#/components/schemas/PlayerName"
+      required: [state, id, you, name]
 
     PlayerViewInPlay:
       type: object
@@ -676,6 +794,8 @@ components:
           type: string
         you:
           $ref: "#/components/schemas/Player"
+        names:
+          $ref: "#/components/schemas/Names"
         arrangement:
           $ref: "#/components/schemas/Arrangement"
         dealer:
@@ -708,6 +828,7 @@ components:
         - state
         - id
         - you
+        - names
         - arrangement
         - dealer
         - onTurn
@@ -722,6 +843,7 @@ components:
         state: in-play
         id: c0ffee
         you: one
+        names: { one: Ada, two: Grace }
         arrangement:
           melds:
             - kind: set
@@ -761,8 +883,10 @@ components:
           type: string
         you:
           $ref: "#/components/schemas/Player"
+        names:
+          $ref: "#/components/schemas/Names"
         result:
           $ref: "#/components/schemas/MatchResult"
         previous:
           $ref: "#/components/schemas/RoundResult"
-      required: [state, id, you, result, previous]
+      required: [state, id, you, names, result, previous]

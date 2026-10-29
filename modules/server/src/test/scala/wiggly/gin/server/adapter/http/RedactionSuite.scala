@@ -8,7 +8,8 @@ import weaver.scalacheck.Checkers
 import wiggly.gin.core.domain.*
 import wiggly.gin.gen.GameGen
 
-import Codecs.given
+import wiggly.gin.protocol.Codecs
+import wiggly.gin.protocol.Codecs.given
 
 /** What a player is told, checked against what they are entitled to know.
   *

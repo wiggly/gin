@@ -1,18 +1,68 @@
-package wiggly.gin.server.adapter.http
+package wiggly.gin.protocol
 
 import cats.implicits.*
 import io.circe.Json
 import io.circe.syntax.*
+import org.scalacheck.Gen
 import weaver.SimpleIOSuite
 import weaver.scalacheck.Checkers
 import wiggly.gin.core.domain.*
 import wiggly.gin.core.domain.Rank.*
 import wiggly.gin.core.domain.Suit.*
-import wiggly.gin.gen.GameGen
+import wiggly.gin.core.port.Credentials
+import wiggly.gin.gen.{GameGen, HandGen, NameGen}
 
 import Codecs.given
 
 object CodecsSuite extends SimpleIOSuite with Checkers {
+
+  /** The browser reads every shape the server writes, so each one has to survive the trip back.
+    *
+    * These are properties rather than examples because the claim is about every value, and a
+    * decoder that agrees with its encoder on one hand-picked case is not worth much.
+    */
+  test("a view of a game survives the trip out and back") {
+    forall(GameGen.gamePlayed(20)) { game =>
+      val view: PlayerView = PlayerView.of(game, Player.One)
+
+      expect.eql(Right(view), view.asJson.as[PlayerView])
+    }
+  }
+
+  test("credentials survive the trip out and back") {
+    forall(GameGen.gameId.flatMap(id => GameGen.token.map(Credentials(id, Player.Two, _)))) {
+      seat =>
+        expect.eql(Right(seat), seat.asJson.as[Credentials])
+    }
+  }
+
+  test("an arrangement survives the trip out and back, extra field and all") {
+    forall(HandGen.hand) { cards =>
+      val best = Arrangement.best(cards)
+
+      expect.eql(Right(best), best.asJson.as[Arrangement])
+    }
+  }
+
+  test("a finished round survives the trip out and back") {
+    forall(GameGen.walked()) { round =>
+      round match {
+        case finished: GameState.Finished =>
+          val result = RoundResult.of(finished)
+          expect.eql(Right(result), result.asJson.as[RoundResult])
+        case _ => success
+      }
+    }
+  }
+
+  pureTest("three cards that are not a meld are refused rather than made into one") {
+    val notARun = Json.obj(
+      "kind"  -> Json.fromString("run"),
+      "cards" -> List(Card(Ace, Spades), Card(Five, Hearts), Card(King, Clubs)).asJson
+    )
+
+    expect(notARun.as[Meld].isLeft)
+  }
 
   pureTest("a card is its rank and its suit, spelled out") {
     expect.eql(
@@ -113,9 +163,52 @@ object CodecsSuite extends SimpleIOSuite with Checkers {
   }
 
   pureTest("a game waiting for an opponent says which state it is in") {
-    val view = (PlayerView.AwaitingOpponent(GameId("a-game"), Player.One): PlayerView).asJson
+    val view = (PlayerView.AwaitingOpponent(
+      GameId("a-game"),
+      Player.One,
+      NameGen.named("Ada")
+    ): PlayerView).asJson
 
     expect.eql(view.hcursor.get[String]("state"), Right("awaiting-opponent")) and
-      expect.eql(view.hcursor.get[String]("id"), Right("a-game"))
+      expect.eql(view.hcursor.get[String]("id"), Right("a-game")) and
+      expect.eql(view.hcursor.get[String]("name"), Right("Ada"))
+  }
+
+  pureTest("a name is the string it wraps") {
+    expect.eql(NameGen.named("Ada").asJson, Json.fromString("Ada"))
+  }
+
+  pureTest("a name the rules refuse is refused on the way in, not made into one") {
+    expect(Json.fromString("   ").as[PlayerName].isLeft) and
+      expect(Json.fromString("x" * 21).as[PlayerName].isLeft)
+  }
+
+  test("an introduction survives the trip out and back") {
+    forall(NameGen.name) { name =>
+      expect.eql(Right(Introduction(name)), Introduction(name).asJson.as[Introduction])
+    }
+  }
+
+  pureTest("a listing is its game, its host's name and when it was listed") {
+    val listing = Listing(GameId("g1"), NameGen.named("Ada"), ListedAt(1760000000000L))
+
+    expect.eql(
+      listing.asJson,
+      Json.obj(
+        "id"    -> Json.fromString("g1"),
+        "host"  -> Json.fromString("Ada"),
+        "since" -> Json.fromLong(1760000000000L)
+      )
+    )
+  }
+
+  test("a listing survives the trip out and back") {
+    val listings = for {
+      id    <- GameGen.gameId
+      host  <- NameGen.name
+      since <- Gen.choose(0L, 4000000000000L)
+    } yield Listing(id, host, ListedAt(since))
+
+    forall(listings)(listing => expect.eql(Right(listing), listing.asJson.as[Listing]))
   }
 }

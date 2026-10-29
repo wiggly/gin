@@ -5,6 +5,8 @@ import cats.implicits.*
 import weaver.SimpleIOSuite
 import wiggly.gin.core.domain.{Game, GameId, Token}
 
+import wiggly.gin.gen.NameGen
+
 import scala.concurrent.duration.*
 
 object MemoryGameEventsSuite extends SimpleIOSuite {
@@ -13,7 +15,7 @@ object MemoryGameEventsSuite extends SimpleIOSuite {
   private val other = GameId("another-game")
 
   private def waiting(gameId: GameId, host: String): Game =
-    Game.AwaitingOpponent(gameId, Token(host))
+    Game.AwaitingOpponent(gameId, Token(host), NameGen.named("Ada"))
 
   test("a watcher is handed the game as it stands before anything else happens") {
     for {

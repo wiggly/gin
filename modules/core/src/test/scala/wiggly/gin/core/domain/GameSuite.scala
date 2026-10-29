@@ -5,7 +5,7 @@ import weaver.SimpleIOSuite
 import weaver.scalacheck.Checkers
 import wiggly.gin.core.domain.Rank.*
 import wiggly.gin.core.domain.Suit.*
-import wiggly.gin.gen.GameGen
+import wiggly.gin.gen.{GameGen, NameGen}
 
 object GameSuite extends SimpleIOSuite with Checkers {
 
@@ -13,10 +13,15 @@ object GameSuite extends SimpleIOSuite with Checkers {
   private val host  = Token("host")
   private val guest = Token("guest")
 
-  private val waiting = Game.AwaitingOpponent(id, host)
+  private val hostName  = NameGen.named("Ada")
+  private val guestName = NameGen.named("Grace")
+
+  private val waiting = Game.AwaitingOpponent(id, host, hostName)
 
   private def joined(deck: Deck = Deck.ordered): Game =
-    waiting.joined(guest, deck).getOrElse(sys.error("a waiting game refused an opponent"))
+    waiting
+      .joined(guest, guestName, deck)
+      .getOrElse(sys.error("a waiting game refused an opponent"))
 
   private def inPlay(game: Game): Game.InPlay = {
     game match {
@@ -54,7 +59,14 @@ object GameSuite extends SimpleIOSuite with Checkers {
   }
 
   pureTest("a second opponent is turned away") {
-    expect.eql(joined().joined(Token("third"), Deck.ordered), Left(GameFault.AlreadyFull))
+    expect.eql(
+      joined().joined(Token("third"), NameGen.named("Third"), Deck.ordered),
+      Left(GameFault.AlreadyFull)
+    )
+  }
+
+  pureTest("joining records the host's name and then the guest's") {
+    expect.eql(inPlay(joined()).names, Names(hostName, guestName))
   }
 
   pureTest("a move before anybody has joined is refused") {
@@ -111,10 +123,16 @@ object GameSuite extends SimpleIOSuite with Checkers {
     val deal = GameGen.knockingDeal(knocks, holds)
 
     for {
-      game  <- waiting.joined(guest, deal.deck)
+      game  <- waiting.joined(guest, guestName, deal.deck)
       taken <- game.played(Player.One, Move.DrawDiscard, Deck.ordered)
       ended <- taken.played(Player.One, Move.Knock(deal.spare), next)
     } yield ended
+  }
+
+  pureTest("a scored round carries both names into the next deal") {
+    val next = Deck.from(Deck.ordered.cards.reverse).getOrElse(sys.error("not a deck"))
+
+    expect.eql(knocked(gin, worthTen, next).map(inPlay(_).names), Right(Names(hostName, guestName)))
   }
 
   pureTest("a round that ends is scored, folded into the ledger and followed by a fresh deal") {

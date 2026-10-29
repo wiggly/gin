@@ -7,8 +7,9 @@ import cats.{Order, Show}
 /** Cards that count for nothing against the player holding them: either a set of the same rank or a
   * run in sequence within one suit.
   *
-  * A meld can only be built through [[Meld.Set.from]] or [[Meld.Run.from]], so an invalid one cannot
-  * be constructed and nothing downstream has to re-check the rules on a meld it has been handed.
+  * A meld can only be built through [[Meld.Set.from]] or [[Meld.Run.from]], so an invalid one
+  * cannot be constructed and nothing downstream has to re-check the rules on a meld it has been
+  * handed.
   */
 sealed trait Meld {
 

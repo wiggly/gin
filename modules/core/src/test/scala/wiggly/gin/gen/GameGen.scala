@@ -174,13 +174,15 @@ object GameGen {
     * have to arrive with the move.
     */
   def gamePlayed(steps: Int): Gen[Game] = for {
-    id    <- gameId
-    host  <- token
-    guest <- token
-    first <- deck
+    id        <- gameId
+    host      <- token
+    guest     <- token
+    hostName  <- NameGen.name
+    guestName <- NameGen.name
+    first     <- deck
     game = Game
-      .AwaitingOpponent(id, host)
-      .joined(guest, first)
+      .AwaitingOpponent(id, host, hostName)
+      .joined(guest, guestName, first)
       .getOrElse(sys.error("a waiting game refused an opponent"))
     played <- advance(game, steps)
   } yield played
@@ -201,6 +203,47 @@ object GameGen {
             } yield rest
         }
       case settled => Gen.const(settled)
+    }
+  }
+
+  /** A game with a round in play.
+    *
+    * Built rather than filtered. A game that is waiting or over has no round for a move to be
+    * offered in, and a generator that discarded those would be at the mercy of how often a random
+    * walk ends one.
+    */
+  val inPlay: Gen[Game.InPlay] = for {
+    id        <- gameId
+    host      <- token
+    guest     <- token
+    hostName  <- NameGen.name
+    guestName <- NameGen.name
+    first     <- deck
+    joined = Game.AwaitingOpponent(id, host, hostName).joined(guest, guestName, first) match {
+      case Right(playing: Game.InPlay) => playing
+      case other                       => sys.error(s"a joined game was not in play: $other")
+    }
+    steps  <- Gen.choose(0, 12)
+    played <- advanceInPlay(joined, steps)
+  } yield played
+
+  private def advanceInPlay(game: Game.InPlay, remaining: Int): Gen[Game.InPlay] = {
+    legalMoves(game.round) match {
+      case Nil                 => Gen.const(game)
+      case _ if remaining <= 0 => Gen.const(game)
+      case moves               =>
+        for {
+          (move, _) <- Gen.oneOf(moves)
+          next      <- deck
+          stepped = game
+            .played(game.round.onTurn, move, next)
+            .getOrElse(sys.error(s"a legal move was refused: $move"))
+          rest <- stepped match {
+            case playing: Game.InPlay => advanceInPlay(playing, remaining - 1)
+            // The match ended. This game is the last one that still had a round in it.
+            case _ => Gen.const(game)
+          }
+        } yield rest
     }
   }
 

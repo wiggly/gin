@@ -7,7 +7,8 @@ import cats.{Eq, Show}
   * first, and what each player holds.
   *
   * These four places are the whole round. A move takes a card from one and puts it in another and
-  * never makes one, so a table dealt from a [[Deck]] stays that deck for as long as the round lasts.
+  * never makes one, so a table dealt from a [[Deck]] stays that deck for as long as the round
+  * lasts.
   */
 final case class Table(stock: List[Card], discard: List[Card], hands: Hands)
 

@@ -6,12 +6,18 @@ meta {
 
 post {
   url: {{baseUrl}}/api/v1/games/{{gameId}}/join
-  body: none
+  body: json
   auth: none
 }
 
 headers {
   Accept: application/json
+}
+
+body:json {
+  {
+    "name": "Grace"
+  }
 }
 
 script:post-response {

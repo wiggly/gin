@@ -42,6 +42,23 @@ object Tokens {
   given Show[Tokens] = Show.fromToString
 }
 
+/** A name for each player, keyed so that a lookup cannot fail. */
+final case class Names(one: PlayerName, two: PlayerName) {
+
+  def apply(player: Player): PlayerName = {
+    player match {
+      case Player.One => one
+      case Player.Two => two
+    }
+  }
+}
+
+object Names {
+  given Eq[Names] = Eq.fromUniversalEquals
+
+  given Show[Names] = Show.fromToString
+}
+
 /** A game as it is stored: who is playing, what the match stands at, and the round in play.
   *
   * A stored game never holds a finished round. The moment a round ends it is scored, folded into
@@ -56,9 +73,9 @@ sealed trait Game {
   /** Which player this token seats, or nobody. */
   def holder(token: Token): Option[Player] = {
     this match {
-      case Game.AwaitingOpponent(_, host) => Option.when(host === token)(Player.One)
-      case playing: Game.InPlay           => playing.tokens.holder(token)
-      case over: Game.Over                => over.tokens.holder(token)
+      case Game.AwaitingOpponent(_, host, _) => Option.when(host === token)(Player.One)
+      case playing: Game.InPlay              => playing.tokens.holder(token)
+      case over: Game.Over                   => over.tokens.holder(token)
     }
   }
 
@@ -67,15 +84,16 @@ sealed trait Game {
     * The player who joins deals, so the one who was waiting is offered the upcard first. The deal
     * alternates from the round after, so the advantage is a courtesy rather than a rule.
     */
-  def joined(guest: Token, deck: Deck): Either[GameFault, Game] = {
+  def joined(guest: Token, guestName: PlayerName, deck: Deck): Either[GameFault, Game] = {
     this match {
-      case Game.AwaitingOpponent(id, host) => {
+      case Game.AwaitingOpponent(id, host, hostName) => {
         val ledger = Match.start(Player.Two)
 
         Right(
           Game.InPlay(
             id,
             Tokens(host, guest),
+            Names(hostName, guestName),
             ledger,
             GameState.deal(deck, ledger.seats),
             None
@@ -106,11 +124,12 @@ sealed trait Game {
 
 object Game {
 
-  final case class AwaitingOpponent(id: GameId, host: Token) extends Game
+  final case class AwaitingOpponent(id: GameId, host: Token, hostName: PlayerName) extends Game
 
   final case class InPlay(
       id: GameId,
       tokens: Tokens,
+      names: Names,
       ledger: Match.InProgress,
       round: GameState.InProgress,
       previous: Option[RoundResult]
@@ -119,6 +138,7 @@ object Game {
   final case class Over(
       id: GameId,
       tokens: Tokens,
+      names: Names,
       ledger: Match.Finished,
       previous: RoundResult
   ) extends Game
@@ -132,9 +152,16 @@ object Game {
 
     playing.ledger.played(result.score) match {
       case ledger: Match.InProgress =>
-        InPlay(playing.id, playing.tokens, ledger, GameState.deal(next, ledger.seats), Some(result))
+        InPlay(
+          playing.id,
+          playing.tokens,
+          playing.names,
+          ledger,
+          GameState.deal(next, ledger.seats),
+          Some(result)
+        )
       case ledger: Match.Finished =>
-        Over(playing.id, playing.tokens, ledger, result)
+        Over(playing.id, playing.tokens, playing.names, ledger, result)
     }
   }
 

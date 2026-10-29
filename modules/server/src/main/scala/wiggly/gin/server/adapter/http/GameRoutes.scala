@@ -2,7 +2,6 @@ package wiggly.gin.server.adapter.http
 
 import cats.effect.Temporal
 import cats.syntax.all.*
-import fs2.Stream
 import io.circe.syntax.*
 import io.circe.{Encoder, Json}
 import org.http4s.circe.CirceEntityDecoder.circeEntityDecoder
@@ -16,15 +15,15 @@ import org.http4s.{
   HttpRoutes,
   Request,
   Response,
-  ServerSentEvent,
   Status
 }
-import wiggly.gin.core.domain.{GameFault, GameId, Move, PlayerView, Token}
+import wiggly.gin.core.domain.{GameFault, GameId, Move, PlayerName, Token}
 import wiggly.gin.core.port.GameService
 
 import scala.concurrent.duration.FiniteDuration
 
-import Codecs.given
+import wiggly.gin.protocol.{Codecs, Introduction}
+import wiggly.gin.protocol.Codecs.given
 
 /** The routes a client plays through.
   *
@@ -71,27 +70,24 @@ object GameRoutes {
             .pure[F]
       }
 
-    /** The stream a watcher holds open: that player's view of the game as it stands, then one for
-      * every state it reaches afterwards.
-      *
-      * The comments are there because an idle connection through a proxy is dropped, and a
-      * dropped connection looks to a player like a game that stopped responding.
+    /** A seat is taken by somebody, so a request that does not say who is answered before the
+      * service is asked.
       */
-    def watching(views: Stream[F, PlayerView]): Stream[F, ServerSentEvent] = {
-      val states = views.map(view => ServerSentEvent(data = Some(view.asJson.noSpaces)))
-      val beats  = Stream
-        .awakeEvery[F](heartbeat)
-        .as(ServerSentEvent(data = None, comment = Some("still here")))
-
-      states.merge(beats)
-    }
+    def introduced(request: Request[F])(seated: PlayerName => F[Response[F]]): F[Response[F]] =
+      request.attemptAs[Introduction].value.flatMap {
+        case Right(introduction) => seated(introduction.name)
+        case Left(_)             =>
+          BadRequest(Json.obj("error" -> Json.fromString("malformed-name")))
+      }
 
     HttpRoutes.of[F] {
-      case POST -> Root / "games" =>
-        service.create.flatMap(credentials => Created(credentials.asJson))
+      case request @ POST -> Root / "games" =>
+        introduced(request) { name =>
+          service.create(name).flatMap(credentials => Created(credentials.asJson))
+        }
 
-      case POST -> Root / "games" / id / "join" =>
-        service.join(GameId(id)).flatMap(answered)
+      case request @ POST -> Root / "games" / id / "join" =>
+        introduced(request)(name => service.join(GameId(id), name).flatMap(answered))
 
       case request @ GET -> Root / "games" / id =>
         withToken(request)(token => service.look(GameId(id), token).flatMap(answered))
@@ -108,7 +104,7 @@ object GameRoutes {
       case request @ GET -> Root / "games" / id / "events" =>
         withToken(request) { token =>
           service.watch(GameId(id), token).flatMap {
-            case Right(views) => Ok(watching(views))
+            case Right(views) => Ok(EventStreams(views, heartbeat))
             case Left(fault)  => refused(fault)
           }
         }
